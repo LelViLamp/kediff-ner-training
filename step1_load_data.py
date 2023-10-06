@@ -1,5 +1,6 @@
 # %%
 import os
+import pandas as pd
 import torch
 
 from datasets import load_dataset
@@ -12,6 +13,8 @@ annotations = load_dataset(
 ).remove_columns(
     "Unnamed: 0"
 )
+annotations.set_format("pandas")
+
 
 # %%
 annotations['train'][0]
@@ -70,3 +73,8 @@ def print_tokenised_row(row):
 
 # %%
 print_tokenised_row(tokenised_text['train'][9])
+
+# %%
+
+# collate annotations[start, end, tag] by line id
+# split full text by white spaces --> NO ACTUALLY NOT, split them by token
