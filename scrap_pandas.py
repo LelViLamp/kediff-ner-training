@@ -21,14 +21,33 @@ annotations = pd.read_csv(
 )
 
 # %%
-squash_cols = ['start', 'end', 'label']
 annotations = (
     annotations
     .set_index('line_id')
-    .groupby('line_id')[squash_cols]
+    .groupby('line_id')[['start', 'end', 'label']]
     .apply(
         lambda x: x.to_numpy().tolist()
     )
-    .reset_index(name='annotation_list')
+    .reset_index(name='annotations')
 )
 # many thanks to @mozway on https://stackoverflow.com/a/77243869/13044791
+
+# %%
+merged = pd.merge(
+    left=rawText,
+    right=annotations,
+    how="outer",
+    left_on="document_id",
+    right_on="line_id"
+).drop(
+    columns="line_id"
+)
+
+# %%
+merged['annotations'] = (
+    merged['annotations']
+    .apply(lambda x: x if isinstance(x, list) else [])
+)
+# https://stackoverflow.com/a/43899698/13044791
+
+# %%
