@@ -6,12 +6,12 @@ import pandas as pd
 from transformers import AutoTokenizer, AutoModel, BertTokenizerFast, BatchEncoding
 
 #%% Read data
-rawText = (
+raw_text_df = (
     pd.read_csv(filepath_or_buffer=os.path.join("data", "text.csv"))
     .drop(columns="Unnamed: 0")
     .set_index(keys="document_id")
 )
-annotations = (
+annotations_df = (
     pd.read_csv(filepath_or_buffer=os.path.join("data", "union_dataset.csv"))
     .drop(columns="Unnamed: 0")
     .set_index(keys="annotation_id")
@@ -21,32 +21,34 @@ annotations = (
 #%% Get yourself a tokeniser
 checkpoint: str = "dbmdz/bert-base-historic-multilingual-cased"
 tokeniser: BertTokenizerFast = AutoTokenizer.from_pretrained(checkpoint)
-tokeniser.is_fast
+print(tokeniser.is_fast)
 
 
 #%% Define some helper functions
-def print_aligned(words: list, tags: list):
+def print_aligned(list1: list, list2: list):
     line1 = ""
     line2 = ""
-    for word, tag in zip(words, tags):
-        max_length = max(len(word), len(tag))
-        line1 += word + " " * (max_length - len(word) + 1)
-        line2 += tag + " " * (max_length - len(tag) + 1)
+    for item1, item2 in zip(list1, list2):
+        max_length = max(len(item1), len(item2))
+        line1 += item1 + " " * (max_length - len(item1) + 1)
+        line2 += item2 + " " * (max_length - len(item2) + 1)
     print(line1)
     print(line2)
 
 
 #%% prepare label-specific datasets
+# which labels are there in the dataset?
 present_labels = (
-    annotations
+    annotations_df
     .filter(['label'])
     .drop_duplicates()
     .sort_values('label')
     .to_numpy()
 )
+# unpack them
 present_labels = [x[0] for x in present_labels]
 for label in present_labels:
-    subset = annotations.query(f'label == "{label}"')
+    subset = annotations_df.query(f'label == "{label}"')
     print(label, len(subset))
 
     # Create list of annotations per line
@@ -62,7 +64,7 @@ for label in present_labels:
     # Merge annotations onto text
     merged = (
         pd.merge(
-            left=rawText,
+            left=raw_text_df,
             right=subset,
             how="outer",
             left_on="document_id",
@@ -85,13 +87,47 @@ for label in present_labels:
     ner_tags    sequence    [   3,         0,        7,      0, ...]
     """
 
-    for index, row in merged.iterrows():
+    for _, row in merged.iterrows():
         text: str = row['text']
         annotations = row['annotations']
 
+        annotation_word_spans = []
+
         inputs: BatchEncoding = tokeniser(text)
         if len(annotations) >= 1:
-            x = map_annotations(inputs, annotations)
+            # assign annotations to words
+            for annotation in annotations:
+                # find start and end word
+                start_char_annotation = annotation[0]
+                end_char_annotation = annotation[1]
+
+                start_word_index = None
+                end_word_index = None
+                for index, span in enumerate(inputs.encodings[0].offsets):
+                    start_char_span: int = span[0]
+                    end_char_span: int = span[1]
+
+                    if start_word_index is None:
+                        if start_char_annotation <= start_char_span:
+                            start_word_index = inputs.encodings[0].word_ids[index]
+                    if end_word_index is None:
+                        if end_char_annotation == end_char_span:
+                            end_word_index = inputs.encodings[0].word_ids[index]
+                        elif end_char_annotation < end_char_span:
+                            end_word_index = inputs.encodings[0].word_ids[index - 1]
+                    if start_word_index is not None and end_word_index is not None:
+                        word_span: Tuple[int, int] = (start_word_index, end_word_index)
+                        annotation_word_spans.append(word_span)
+                        annotation.append(word_span)
+
+                        # check
+                        print(text[start_char_annotation:end_char_annotation])
+                        # this next line is not an encoded word but just the word index in inputs/encoding/tokenised
+                        print(inputs.token_to_word(word_id) for word_id in range(start_word_index, end_word_index))
+                        break
+                    # find end word
+                    # store that word id + tag
+                    pass
 
 
 
