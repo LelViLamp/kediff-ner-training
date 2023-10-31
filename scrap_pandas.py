@@ -1,14 +1,13 @@
-# %% Import Packages
+# %% duty-free imports
 import os
-from typing import Tuple, Union, Any
+from collections import Counter, defaultdict
 
 import pandas as pd
 from tokenizers import Encoding
 from tqdm import tqdm
-from transformers import AutoTokenizer, AutoModel, BertTokenizerFast, BatchEncoding
-from transformers.tokenization_utils_base import EncodingFast
+from transformers import AutoTokenizer, BertTokenizerFast
 
-# %% Read data
+# %% read data from CSVs
 raw_text_df = (
     pd.read_csv(filepath_or_buffer=os.path.join("data", "text.csv"))
     .drop(columns="Unnamed: 0")
@@ -20,23 +19,10 @@ annotations_df = (
     .set_index(keys="annotation_id")
 )
 
-# %% Get yourself a tokeniser
+# %% get yourself a tokeniser
 checkpoint: str = "dbmdz/bert-base-historic-multilingual-cased"
 tokeniser: BertTokenizerFast = AutoTokenizer.from_pretrained(checkpoint)
 print(tokeniser.is_fast)
-
-
-# %% Define some helper functions
-def print_aligned(list1: list, list2: list):
-    line1 = ""
-    line2 = ""
-    for item1, item2 in zip(list1, list2):
-        max_length = max(len(item1), len(item2))
-        line1 += item1 + " " * (max_length - len(item1) + 1)
-        line2 += item2 + " " * (max_length - len(item2) + 1)
-    print(line1)
-    print(line2)
-
 
 # %% which labels are there in the dataset?
 present_labels = (
@@ -50,8 +36,25 @@ present_labels = (
 present_labels = [x[0] for x in present_labels]
 
 
-# %% get some sample data
-def get_subset_data(annotations_df, label: str):
+# %% define some helper functions
+def print_aligned(
+        list1: list,
+        list2: list
+):
+    line1 = ""
+    line2 = ""
+    for item1, item2 in zip(list1, list2):
+        max_length = max(len(item1), len(item2))
+        line1 += item1 + " " * (max_length - len(item1) + 1)
+        line2 += item2 + " " * (max_length - len(item2) + 1)
+    print(line1)
+    print(line2)
+
+
+def get_subset_data(
+        annotations_df,
+        label: str
+):
     subset = annotations_df.query(f'label == "{label}"')
     # Create list of annotations per line
     subset = (
@@ -65,7 +68,10 @@ def get_subset_data(annotations_df, label: str):
     return subset
 
 
-def merge_annotations_and_text(raw_text_df, annotations_df):
+def merge_annotations_and_text(
+        raw_text_df,
+        annotations_df
+):
     # Merge annotations onto text
     merged = (
         pd.merge(
@@ -86,7 +92,10 @@ def merge_annotations_and_text(raw_text_df, annotations_df):
     return merged
 
 
-def align_tokens_and_annotations_bilou(tokenised: Encoding, annotations):
+def annotations_to_token_BILUs(
+        tokenised: Encoding,
+        annotations
+):
     # https://www.lighttag.io/blog/sequence-labeling-with-transformers/example
     tokens = tokenised.tokens
     # make a list to store our labels the same length as our tokens
@@ -121,14 +130,11 @@ def align_tokens_and_annotations_bilou(tokenised: Encoding, annotations):
     return aligned_labels
 
 
-# %% loop
-from collections import Counter, defaultdict
-
+# %% tokenise
 merged_dict = {'text': raw_text_df['text'].values.tolist()}
-# tokenise
 token_counter = Counter()
 tokenised = []
-for text in merged_dict['text']:
+for text in tqdm(merged_dict['text'], desc="Tokenise"):
     tokenised_text = tokeniser(text)[0]
     tokens = tokenised_text.tokens
 
@@ -136,21 +142,24 @@ for text in merged_dict['text']:
     token_counter.update(tokens)
 merged_dict['tokenised'] = tokenised
 
-# %%
+# %% annotation columns per label
+longest_label_length: int = len(max(present_labels, key=len))
 for label in present_labels:
-    subset_df = get_subset_data(annotations_df, label)
+    label_subset_df: pd.DataFrame = get_subset_data(annotations_df, label)
+    subset_BILUs = len(merged_dict['text']) * [list()]
 
-    for _, row in tqdm(subset_df.iterrows(), total=len(subset_df), desc=label):
-        line_id = row['line_id']
+    for _, row in tqdm(label_subset_df.iterrows(), total=len(label_subset_df), desc="Align " + str.ljust(label, longest_label_length)):
+        line_id: int = row['line_id']
+        dict_access_index: int = line_id - 1
         annotations = row['annotations']
 
-        tokenised_text = merged_dict['tokenised'][line_id]
-        aligned_labels = align_tokens_and_annotations_bilou(tokenised_text, annotations)
+        tokenised_text = merged_dict['tokenised'][dict_access_index]
+        BILUs = annotations_to_token_BILUs(tokenised_text, annotations)
+        subset_BILUs[dict_access_index].append(BILUs)
 
-        # for token, label in zip(tokens, aligned_labels):
-        #     print(token, "-", label)
+    merged_dict[f'{label}-BILUs'] = subset_BILUs
 
-# %%
+# %% plot token_counter and appreciate its Zipf-iness
 import plotly.express as px
 
 token_counter_df = pd.DataFrame.from_dict([token_counter]).transpose()
@@ -160,7 +169,7 @@ px.histogram(token_counter_df).show()
     .bar(token_counter_df, x=token_counter_df.index, y=0)
     .update_layout(xaxis={'categoryorder': 'total descending'})
     .show()
- )
+)
 
 # %%
 print("Finished")
