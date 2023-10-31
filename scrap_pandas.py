@@ -4,6 +4,7 @@ from typing import Tuple, Union, Any
 
 import pandas as pd
 from tokenizers import Encoding
+from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModel, BertTokenizerFast, BatchEncoding
 from transformers.tokenization_utils_base import EncodingFast
 
@@ -121,9 +122,12 @@ def align_tokens_and_annotations_bilou(tokenised: Encoding, annotations):
 
 
 # %% loop
+from collections import Counter
+
+token_counter = Counter()
 for label in present_labels:
     subset_df = get_subset_data(annotations_df, label)
-    print(label, len(subset_df))
+    # print(label, len(subset_df))
 
     merged = merge_annotations_and_text(raw_text_df, subset_df)
 
@@ -134,21 +138,26 @@ for label in present_labels:
     ner_tags    sequence    [   3,         0,        7,      0, ...]
     """
 
-    for _, row in merged.iterrows():
+    for _, row in tqdm(merged.iterrows(), total=len(merged), desc=label):
         text: str = row['text']
         annotations = row['annotations']
 
         tokenised_batch: BatchEncoding = tokeniser(text)
         tokenised_text = tokenised_batch[0]
         tokens = tokenised_text.tokens
+        token_counter.update(tokens)
 
         aligned_labels = align_tokens_and_annotations_bilou(tokenised_text, annotations)
 
-        for token, label in zip(tokens, aligned_labels):
-            print(token, "-", label)
+        # for token, label in zip(tokens, aligned_labels):
+        #     print(token, "-", label)
 
+# %%
+import plotly.express as px
 
-        pass
+token_counter_df = pd.DataFrame.from_dict([token_counter]).transpose()
+px.histogram(token_counter_df).show()
+px.bar(token_counter_df, x=token_counter_df.index, y=0).update_layout(xaxis={'categoryorder': 'total descending'}).show()
 
 # %%
 print("Finished")
