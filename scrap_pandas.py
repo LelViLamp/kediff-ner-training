@@ -1,9 +1,11 @@
 # %% Import Packages
 import os
-from typing import Tuple
+from typing import Tuple, Union, Any
 
 import pandas as pd
+from tokenizers import Encoding
 from transformers import AutoTokenizer, AutoModel, BertTokenizerFast, BatchEncoding
+from transformers.tokenization_utils_base import EncodingFast
 
 # %% Read data
 raw_text_df = (
@@ -101,43 +103,27 @@ for label in present_labels:
         text: str = row['text']
         annotations = row['annotations']
 
-        annotation_word_spans = []
+        tokenised_batch: BatchEncoding = tokeniser(text)
+        tokenised_text = tokenised_batch[0]
+        tokens = tokenised_text.tokens
 
-        inputs: BatchEncoding = tokeniser(text)
-        if len(annotations) >= 1:
-            # assign annotations to words
-            for annotation in annotations:
-                # find start and end word
-                start_char_annotation = annotation[0]
-                end_char_annotation = annotation[1]
+        aligned_labels = ["O"] * len(tokens)  # Make a list to store our labels the same length as our tokens
 
-                start_word_index = None
-                end_word_index = None
-                for index, span in enumerate(inputs.encodings[0].offsets):
-                    start_char_span: int = span[0]
-                    end_char_span: int = span[1]
+        for annotation in annotations:
+            start = annotation[0]
+            end = annotation[1]
+            label = annotation[2]
 
-                    if start_word_index is None:
-                        if start_char_annotation <= start_char_span:
-                            start_word_index = inputs.encodings[0].word_ids[index]
-                    if end_word_index is None:
-                        if end_char_annotation == end_char_span:
-                            end_word_index = inputs.encodings[0].word_ids[index]
-                        elif end_char_annotation < end_char_span:
-                            end_word_index = inputs.encodings[0].word_ids[index - 1]
+            for char_index in range(start, end):
+                token_index = tokenised_text.char_to_token(char_index)
+                if token_index is not None:
+                    aligned_labels[token_index] = label
 
-                    if start_word_index is not None and end_word_index is not None:
-                        word_span: Tuple[int, int] = (start_word_index, end_word_index)
-                        annotation_word_spans.append(word_span)
-                        annotation.append(word_span)
+        for token, label in zip(tokens, aligned_labels):
+            print(token, "-", label)
 
-                        # check
-                        print(text[start_char_annotation:end_char_annotation])
-                        # this next line is not an encoded word but just the word index in inputs/encoding/tokenised
-                        print(inputs.token_to_word(word_id) for word_id in range(start_word_index, end_word_index))
-                    # find end word
-                    # store that word id + tag
-                    pass
+
+        pass
 
 # %%
 print("Finished")
