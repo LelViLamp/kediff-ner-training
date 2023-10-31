@@ -4,9 +4,11 @@ from collections import Counter
 
 import pandas as pd
 import plotly.express as px
+from datasets import Dataset
 from tokenizers import Encoding
 from tqdm import tqdm
 from transformers import AutoTokenizer, BertTokenizerFast
+
 
 # %% read data from CSVs
 raw_text_df = (
@@ -20,10 +22,12 @@ annotations_df = (
     .set_index(keys="annotation_id")
 )
 
+
 # %% get yourself a tokeniser
 checkpoint: str = "dbmdz/bert-base-historic-multilingual-cased"
 tokeniser: BertTokenizerFast = AutoTokenizer.from_pretrained(checkpoint)
 print(tokeniser.is_fast)
+
 
 # %% which labels are there in the dataset?
 present_labels = (
@@ -132,16 +136,17 @@ def annotations_to_token_BILUs(
 
 
 # %% tokenise
-tokenised_dataset = {'text': raw_text_df['text'].values.tolist()}
+dataset_dict = {'text': raw_text_df['text'].values.tolist()}
 token_counter = Counter()
 tokenised = []
-for text in tqdm(tokenised_dataset['text'], desc="Tokenise"):
+for text in tqdm(dataset_dict['text'], desc="Tokenise"):
     tokenised_text = tokeniser(text)[0]
     tokens = tokenised_text.tokens
 
     tokenised.append(tokenised_text)
     token_counter.update(tokens)
-tokenised_dataset['tokenised'] = tokenised
+dataset_dict['tokenised'] = tokenised
+
 
 # %% plot token_counter and appreciate its Zipf-iness
 token_counter_df = pd.DataFrame.from_dict([token_counter]).transpose()
@@ -152,11 +157,13 @@ px.histogram(token_counter_df).show()
     .update_layout(xaxis={'categoryorder': 'total descending'})
     .show()
 )
+
+
 # %% annotation columns per label
 longest_label_length: int = len(max(present_labels, key=len))
 for label in present_labels:
     label_subset_df: pd.DataFrame = get_subset_data(annotations_df, label)
-    subset_BILUs = len(tokenised_dataset['text']) * [list()]
+    subset_BILUs = [list() for i in range(len(dataset_dict['text']))]
 
     for _, row in tqdm(label_subset_df.iterrows(), total=len(label_subset_df),
                        desc="Align " + str.ljust(label, longest_label_length)):
@@ -164,11 +171,16 @@ for label in present_labels:
         dict_access_index: int = line_id - 1
         annotations = row['annotations']
 
-        tokenised_text = tokenised_dataset['tokenised'][dict_access_index]
+        tokenised_text = dataset_dict['tokenised'][dict_access_index]
         BILUs = annotations_to_token_BILUs(tokenised_text, annotations)
         subset_BILUs[dict_access_index].append(BILUs)
 
-    tokenised_dataset[f'{label}-BILUs'] = subset_BILUs
+    dataset_dict[f'{label}-BILUs'] = subset_BILUs
 
-# %%
-print("Finished")
+
+# %% create a HuggingFace dataset
+if "tokenised" in dataset_dict:
+    del dataset_dict['tokenised']
+dataset_df = pd.DataFrame.from_dict(dataset_dict)
+dataset_hf = Dataset.from_dict(dataset_dict)
+
