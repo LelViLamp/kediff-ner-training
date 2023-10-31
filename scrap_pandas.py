@@ -1,8 +1,9 @@
 # %% duty-free imports
 import os
-from collections import Counter, defaultdict
+from collections import Counter
 
 import pandas as pd
+import plotly.express as px
 from tokenizers import Encoding
 from tqdm import tqdm
 from transformers import AutoTokenizer, BertTokenizerFast
@@ -142,13 +143,23 @@ for text in tqdm(merged_dict['text'], desc="Tokenise"):
     token_counter.update(tokens)
 merged_dict['tokenised'] = tokenised
 
+# %% plot token_counter and appreciate its Zipf-iness
+token_counter_df = pd.DataFrame.from_dict([token_counter]).transpose()
+px.histogram(token_counter_df).show()
+(
+    px
+    .bar(token_counter_df, x=token_counter_df.index, y=0)
+    .update_layout(xaxis={'categoryorder': 'total descending'})
+    .show()
+)
 # %% annotation columns per label
 longest_label_length: int = len(max(present_labels, key=len))
 for label in present_labels:
     label_subset_df: pd.DataFrame = get_subset_data(annotations_df, label)
     subset_BILUs = len(merged_dict['text']) * [list()]
 
-    for _, row in tqdm(label_subset_df.iterrows(), total=len(label_subset_df), desc="Align " + str.ljust(label, longest_label_length)):
+    for _, row in tqdm(label_subset_df.iterrows(), total=len(label_subset_df),
+                       desc="Align " + str.ljust(label, longest_label_length)):
         line_id: int = row['line_id']
         dict_access_index: int = line_id - 1
         annotations = row['annotations']
@@ -158,18 +169,6 @@ for label in present_labels:
         subset_BILUs[dict_access_index].append(BILUs)
 
     merged_dict[f'{label}-BILUs'] = subset_BILUs
-
-# %% plot token_counter and appreciate its Zipf-iness
-import plotly.express as px
-
-token_counter_df = pd.DataFrame.from_dict([token_counter]).transpose()
-px.histogram(token_counter_df).show()
-(
-    px
-    .bar(token_counter_df, x=token_counter_df.index, y=0)
-    .update_layout(xaxis={'categoryorder': 'total descending'})
-    .show()
-)
 
 # %%
 print("Finished")
