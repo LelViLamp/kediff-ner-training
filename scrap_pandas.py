@@ -85,6 +85,41 @@ def merge_annotations_and_text(raw_text_df, annotations_df):
     return merged
 
 
+def align_tokens_and_annotations_bilou(tokenised: Encoding, annotations):
+    # https://www.lighttag.io/blog/sequence-labeling-with-transformers/example
+    tokens = tokenised.tokens
+    # make a list to store our labels the same length as our tokens
+    aligned_labels = ["O"] * len(tokens)
+
+    for annotation in annotations:
+        start = annotation[0]
+        end = annotation[1]
+        label = annotation[2]
+
+        # a set that stores the token indices of the annotation
+        annotation_token_index_set = (set())
+        for char_index in range(start, end):
+            token_index = tokenised.char_to_token(char_index)
+            if token_index is not None:
+                annotation_token_index_set.add(token_index)
+        if len(annotation_token_index_set) == 1:
+            # if there is only one token
+            token_index = annotation_token_index_set.pop()
+            prefix = ("U")  # This annotation spans one token so is prefixed with U for unique
+            aligned_labels[token_index] = f"{prefix}-{label}"
+        else:
+            last_token_in_anno_index = len(annotation_token_index_set) - 1
+            for num, token_index in enumerate(sorted(annotation_token_index_set)):
+                if num == 0:
+                    prefix = "B"
+                elif num == last_token_in_anno_index:
+                    prefix = "L"  # Its the last token
+                else:
+                    prefix = "I"  # We're inside of a multi token annotation
+                aligned_labels[token_index] = f"{prefix}-{label}"
+    return aligned_labels
+
+
 # %% loop
 for label in present_labels:
     subset_df = get_subset_data(annotations_df, label)
@@ -107,17 +142,7 @@ for label in present_labels:
         tokenised_text = tokenised_batch[0]
         tokens = tokenised_text.tokens
 
-        aligned_labels = ["O"] * len(tokens)  # Make a list to store our labels the same length as our tokens
-
-        for annotation in annotations:
-            start = annotation[0]
-            end = annotation[1]
-            label = annotation[2]
-
-            for char_index in range(start, end):
-                token_index = tokenised_text.char_to_token(char_index)
-                if token_index is not None:
-                    aligned_labels[token_index] = label
+        aligned_labels = align_tokens_and_annotations_bilou(tokenised_text, annotations)
 
         for token, label in zip(tokens, aligned_labels):
             print(token, "-", label)
