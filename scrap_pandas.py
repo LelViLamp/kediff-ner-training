@@ -106,6 +106,11 @@ def annotations_to_token_BILUs(
     # make a list to store our labels the same length as our tokens
     aligned_labels = ["O"] * len(tokens)
 
+    if len(annotations) == 0:
+        return aligned_labels
+    else:
+        annotations = annotations[0]
+
     for annotation in annotations:
         start = annotation[0]
         end = annotation[1]
@@ -165,13 +170,14 @@ for label in present_labels:
     label_subset_df: pd.DataFrame = get_subset_data(annotations_df, label)
     subset_BILUs = [list() for i in range(len(dataset_dict['text']))]
 
-    for _, row in tqdm(label_subset_df.iterrows(), total=len(label_subset_df),
-                       desc="Align " + str.ljust(label, longest_label_length)):
-        line_id: int = row['line_id']
-        dict_access_index: int = line_id - 1
-        annotations = row['annotations']
-
+    for dict_access_index in tqdm(range(len(label_subset_df)),
+                                  desc=f"Align {label} annotations"):
+        line_id: int = dict_access_index + 1
+        text: str = dataset_dict['text'][dict_access_index]
         tokenised_text = dataset_dict['tokenised'][dict_access_index]
+        annotations = label_subset_df.query(f"line_id == {line_id}")
+        annotations = annotations['annotations'].values.tolist()
+
         BILUs = annotations_to_token_BILUs(tokenised_text, annotations)
         subset_BILUs[dict_access_index].append(BILUs)
 
@@ -183,4 +189,4 @@ if "tokenised" in dataset_dict:
     del dataset_dict['tokenised']
 dataset_df = pd.DataFrame.from_dict(dataset_dict)
 dataset_hf = Dataset.from_dict(dataset_dict)
-
+pass
