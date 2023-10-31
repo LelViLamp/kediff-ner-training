@@ -132,16 +132,16 @@ def annotations_to_token_BILUs(
 
 
 # %% tokenise
-merged_dict = {'text': raw_text_df['text'].values.tolist()}
+tokenised_dataset = {'text': raw_text_df['text'].values.tolist()}
 token_counter = Counter()
 tokenised = []
-for text in tqdm(merged_dict['text'], desc="Tokenise"):
+for text in tqdm(tokenised_dataset['text'], desc="Tokenise"):
     tokenised_text = tokeniser(text)[0]
     tokens = tokenised_text.tokens
 
     tokenised.append(tokenised_text)
     token_counter.update(tokens)
-merged_dict['tokenised'] = tokenised
+tokenised_dataset['tokenised'] = tokenised
 
 # %% plot token_counter and appreciate its Zipf-iness
 token_counter_df = pd.DataFrame.from_dict([token_counter]).transpose()
@@ -156,7 +156,7 @@ px.histogram(token_counter_df).show()
 longest_label_length: int = len(max(present_labels, key=len))
 for label in present_labels:
     label_subset_df: pd.DataFrame = get_subset_data(annotations_df, label)
-    subset_BILUs = len(merged_dict['text']) * [list()]
+    subset_BILUs = len(tokenised_dataset['text']) * [list()]
 
     for _, row in tqdm(label_subset_df.iterrows(), total=len(label_subset_df),
                        desc="Align " + str.ljust(label, longest_label_length)):
@@ -164,11 +164,11 @@ for label in present_labels:
         dict_access_index: int = line_id - 1
         annotations = row['annotations']
 
-        tokenised_text = merged_dict['tokenised'][dict_access_index]
+        tokenised_text = tokenised_dataset['tokenised'][dict_access_index]
         BILUs = annotations_to_token_BILUs(tokenised_text, annotations)
         subset_BILUs[dict_access_index].append(BILUs)
 
-    merged_dict[f'{label}-BILUs'] = subset_BILUs
+    tokenised_dataset[f'{label}-BILUs'] = subset_BILUs
 
 # %%
 print("Finished")
