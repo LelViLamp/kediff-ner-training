@@ -122,31 +122,29 @@ def align_tokens_and_annotations_bilou(tokenised: Encoding, annotations):
 
 
 # %% loop
-from collections import Counter
+from collections import Counter, defaultdict
 
+merged_dict = {'text': raw_text_df['text'].values.tolist()}
+# tokenise
 token_counter = Counter()
+tokenised = []
+for text in merged_dict['text']:
+    tokenised_text = tokeniser(text)[0]
+    tokens = tokenised_text.tokens
+
+    tokenised.append(tokenised_text)
+    token_counter.update(tokens)
+merged_dict['tokenised'] = tokenised
+
+# %%
 for label in present_labels:
     subset_df = get_subset_data(annotations_df, label)
-    # print(label, len(subset_df))
 
-    merged = merge_annotations_and_text(raw_text_df, subset_df)
-
-    """
-    Desired structure is a table of the following structure per row
-    id          int         0
-    tokens      sequence    ["EU", "rejects", "German", "call", ...]
-    ner_tags    sequence    [   3,         0,        7,      0, ...]
-    """
-
-    for _, row in tqdm(merged.iterrows(), total=len(merged), desc=label):
-        text: str = row['text']
+    for _, row in tqdm(subset_df.iterrows(), total=len(subset_df), desc=label):
+        line_id = row['line_id']
         annotations = row['annotations']
 
-        tokenised_batch: BatchEncoding = tokeniser(text)
-        tokenised_text = tokenised_batch[0]
-        tokens = tokenised_text.tokens
-        token_counter.update(tokens)
-
+        tokenised_text = merged_dict['tokenised'][line_id]
         aligned_labels = align_tokens_and_annotations_bilou(tokenised_text, annotations)
 
         # for token, label in zip(tokens, aligned_labels):
@@ -157,7 +155,12 @@ import plotly.express as px
 
 token_counter_df = pd.DataFrame.from_dict([token_counter]).transpose()
 px.histogram(token_counter_df).show()
-px.bar(token_counter_df, x=token_counter_df.index, y=0).update_layout(xaxis={'categoryorder': 'total descending'}).show()
+(
+    px
+    .bar(token_counter_df, x=token_counter_df.index, y=0)
+    .update_layout(xaxis={'categoryorder': 'total descending'})
+    .show()
+ )
 
 # %%
 print("Finished")
