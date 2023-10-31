@@ -1,11 +1,11 @@
-#%% Import Packages
+# %% Import Packages
 import os
 from typing import Tuple
 
 import pandas as pd
 from transformers import AutoTokenizer, AutoModel, BertTokenizerFast, BatchEncoding
 
-#%% Read data
+# %% Read data
 raw_text_df = (
     pd.read_csv(filepath_or_buffer=os.path.join("data", "text.csv"))
     .drop(columns="Unnamed: 0")
@@ -17,14 +17,13 @@ annotations_df = (
     .set_index(keys="annotation_id")
 )
 
-
-#%% Get yourself a tokeniser
+# %% Get yourself a tokeniser
 checkpoint: str = "dbmdz/bert-base-historic-multilingual-cased"
 tokeniser: BertTokenizerFast = AutoTokenizer.from_pretrained(checkpoint)
 print(tokeniser.is_fast)
 
 
-#%% Define some helper functions
+# %% Define some helper functions
 def print_aligned(list1: list, list2: list):
     line1 = ""
     line2 = ""
@@ -36,8 +35,7 @@ def print_aligned(list1: list, list2: list):
     print(line2)
 
 
-#%% prepare label-specific datasets
-# which labels are there in the dataset?
+# %% which labels are there in the dataset?
 present_labels = (
     annotations_df
     .filter(['label'])
@@ -45,12 +43,13 @@ present_labels = (
     .sort_values('label')
     .to_numpy()
 )
-# unpack them
+# unpack them, cause rn this is a list of one-element lists
 present_labels = [x[0] for x in present_labels]
-for label in present_labels:
-    subset = annotations_df.query(f'label == "{label}"')
-    print(label, len(subset))
 
+
+# %% get some sample data
+def get_subset_data(annotations_df, label: str):
+    subset = annotations_df.query(f'label == "{label}"')
     # Create list of annotations per line
     subset = (
         subset
@@ -60,25 +59,36 @@ for label in present_labels:
         .reset_index(name='annotations')
     )
     # many thanks to @mozway on https://stackoverflow.com/a/77243869/13044791
+    return subset
 
+
+def merge_annotations_and_text(raw_text_df, annotations_df):
     # Merge annotations onto text
     merged = (
         pd.merge(
             left=raw_text_df,
-            right=subset,
+            right=annotations_df,
             how="outer",
             left_on="document_id",
             right_on="line_id"
         )
         .drop(columns="line_id")
     )
-
     # Initialise non-annotated lines' annotations columns with empty dummy-list
     merged['annotations'] = (
         merged['annotations']
         .apply(lambda entry: entry if isinstance(entry, list) else list())
     )
     # https://stackoverflow.com/a/43899698/13044791
+    return merged
+
+
+# %% loop
+for label in present_labels:
+    subset_df = get_subset_data(annotations_df, label)
+    print(label, len(subset_df))
+
+    merged = merge_annotations_and_text(raw_text_df, subset_df)
 
     """
     Desired structure is a table of the following structure per row
@@ -115,6 +125,7 @@ for label in present_labels:
                             end_word_index = inputs.encodings[0].word_ids[index]
                         elif end_char_annotation < end_char_span:
                             end_word_index = inputs.encodings[0].word_ids[index - 1]
+
                     if start_word_index is not None and end_word_index is not None:
                         word_span: Tuple[int, int] = (start_word_index, end_word_index)
                         annotation_word_spans.append(word_span)
@@ -124,19 +135,9 @@ for label in present_labels:
                         print(text[start_char_annotation:end_char_annotation])
                         # this next line is not an encoded word but just the word index in inputs/encoding/tokenised
                         print(inputs.token_to_word(word_id) for word_id in range(start_word_index, end_word_index))
-                        break
                     # find end word
                     # store that word id + tag
                     pass
-
-
-
-
-
-
-# %%
-
-
 
 # %%
 print("Finished")
