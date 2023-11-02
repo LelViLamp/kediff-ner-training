@@ -267,4 +267,9 @@ $RECYCLE.BIN/
 
 # PyCharm workspace configuration
 .idea/*
+
+# RStudio
 .Rproj.user
+.Rhistory
+*.knit.md
+*.nb.html

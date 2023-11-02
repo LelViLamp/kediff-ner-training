@@ -1,0 +1,24 @@
+---
+title: "Do we find some Zipf-iness in the tokenised text?"
+output: html_notebook
+---
+
+```{r packages, include=FALSE}
+if (!require(pacman)) install.packages('pacman')
+pacman::p_load(here, tidyverse)
+```
+
+```{r load_data}
+token_counter <-
+  here::here("data", "token_counter.csv") %>%
+  read.csv(col.names = c("Token", "Count")) %>%
+  mutate(Token = factor(Token, levels = Token)) %>%
+  arrange(-Count)
+token_counter
+```
+
+```{r plot}
+token_counter %>%
+  ggplot(aes(x = Token, y = Count)) +
+  geom_bar(stat = "identity")
+```
