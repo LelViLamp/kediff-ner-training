@@ -267,3 +267,4 @@ $RECYCLE.BIN/
 
 # PyCharm workspace configuration
 .idea/*
+.Rproj.user
