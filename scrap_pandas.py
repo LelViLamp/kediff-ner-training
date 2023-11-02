@@ -26,7 +26,7 @@ annotations_df = (
 # %% get yourself a tokeniser
 checkpoint: str = "dbmdz/bert-base-historic-multilingual-cased"
 tokeniser: BertTokenizerFast = AutoTokenizer.from_pretrained(checkpoint)
-print(tokeniser.is_fast)
+print("This is a fast tokeniser?", tokeniser.is_fast)
 
 
 # %% which labels are there in the dataset?
@@ -144,7 +144,7 @@ def annotations_to_token_BILUs(
 dataset_dict = {'text': raw_text_df['text'].values.tolist()}
 token_counter = Counter()
 tokenised = []
-for text in tqdm(dataset_dict['text'], desc="Tokenise"):
+for text in tqdm(dataset_dict['text'], desc="Tokenise all texts"):
     tokenised_text = tokeniser(text)[0]
     tokens = tokenised_text.tokens
 
@@ -153,25 +153,26 @@ for text in tqdm(dataset_dict['text'], desc="Tokenise"):
 dataset_dict['tokenised'] = tokenised
 
 
-# %% plot token_counter and appreciate its Zipf-iness
+# %% store token_counter statistics, plot them somewhere else to appreciate its Zipf-iness
 token_counter_df = pd.DataFrame.from_dict([token_counter]).transpose()
-px.histogram(token_counter_df).show()
-(
-    px
-    .bar(token_counter_df, x=token_counter_df.index, y=0)
-    .update_layout(xaxis={'categoryorder': 'total descending'})
-    .show()
-)
+token_counter_df.to_csv(os.path.join('data', 'token_counter.csv'))
+# px.histogram(token_counter_df).show()
+# (
+#     px
+#     .bar(token_counter_df, x=token_counter_df.index, y=0)
+#     .update_layout(xaxis={'categoryorder': 'total descending'})
+#     .show()
+# )
 
 
-# %% annotation columns per label
+# %% BILU annotation columns per label
 longest_label_length: int = len(max(present_labels, key=len))
 for label in present_labels:
     label_subset_df: pd.DataFrame = get_subset_data(annotations_df, label)
-    subset_BILUs = [list() for i in range(len(dataset_dict['text']))]
+    subset_BILUs = []
 
-    for dict_access_index in tqdm(range(len(label_subset_df)),
-                                  desc=f"Align {label} annotations"):
+    for dict_access_index in tqdm(range(len(dataset_dict['text'])),
+                                  desc=f"Converting {label} annotations to BILUs"):
         line_id: int = dict_access_index + 1
         text: str = dataset_dict['text'][dict_access_index]
         tokenised_text = dataset_dict['tokenised'][dict_access_index]
@@ -179,7 +180,7 @@ for label in present_labels:
         annotations = annotations['annotations'].values.tolist()
 
         BILUs = annotations_to_token_BILUs(tokenised_text, annotations)
-        subset_BILUs[dict_access_index].append(BILUs)
+        subset_BILUs.append(BILUs)
 
     dataset_dict[f'{label}-BILUs'] = subset_BILUs
 
@@ -188,5 +189,5 @@ for label in present_labels:
 if "tokenised" in dataset_dict:
     del dataset_dict['tokenised']
 dataset_df = pd.DataFrame.from_dict(dataset_dict)
+dataset_df.to_csv(os.path.join('data', 'BILUs.csv'))
 dataset_hf = Dataset.from_dict(dataset_dict)
-pass
