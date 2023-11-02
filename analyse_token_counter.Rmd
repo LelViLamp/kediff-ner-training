@@ -11,7 +11,7 @@ pacman::p_load(here, tidyverse)
 ```{r load_data}
 token_counter <-
   here::here("data", "token_counter.csv") %>%
-  read.csv(col.names = c("Token", "Count")) %>%
+  read.csv() %>%
   mutate(Token = factor(Token, levels = Token)) %>%
   arrange(-Count)
 token_counter

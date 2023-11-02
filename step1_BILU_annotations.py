@@ -3,12 +3,9 @@ import os
 from collections import Counter
 
 import pandas as pd
-import plotly.express as px
-from datasets import Dataset
 from tokenizers import Encoding
 from tqdm import tqdm
 from transformers import AutoTokenizer, BertTokenizerFast
-
 
 # %% read data from CSVs
 raw_text_df = (
@@ -22,12 +19,10 @@ annotations_df = (
     .set_index(keys="annotation_id")
 )
 
-
 # %% get yourself a tokeniser
 checkpoint: str = "dbmdz/bert-base-historic-multilingual-cased"
 tokeniser: BertTokenizerFast = AutoTokenizer.from_pretrained(checkpoint)
 print("This is a fast tokeniser?", tokeniser.is_fast)
-
 
 # %% which labels are there in the dataset?
 present_labels = (
@@ -141,10 +136,10 @@ def annotations_to_token_BILUs(
 
 
 # %% tokenise
-dataset_dict = {'text': raw_text_df['text'].values.tolist()}
+dataset_dict = {'Text': raw_text_df['text'].values.tolist()}
 token_counter = Counter()
 tokenised = []
-for text in tqdm(dataset_dict['text'], desc="Tokenise all texts"):
+for text in tqdm(dataset_dict['Text'], desc="Tokenise all texts"):
     tokenised_text = tokeniser(text)[0]
     tokens = tokenised_text.tokens
 
@@ -152,18 +147,12 @@ for text in tqdm(dataset_dict['text'], desc="Tokenise all texts"):
     token_counter.update(tokens)
 dataset_dict['tokenised'] = tokenised
 
-
 # %% store token_counter statistics, plot them somewhere else to appreciate its Zipf-iness
 token_counter_df = pd.DataFrame.from_dict([token_counter]).transpose()
-token_counter_df.to_csv(os.path.join('data', 'token_counter.csv'))
-# px.histogram(token_counter_df).show()
-# (
-#     px
-#     .bar(token_counter_df, x=token_counter_df.index, y=0)
-#     .update_layout(xaxis={'categoryorder': 'total descending'})
-#     .show()
-# )
-
+token_counter_df.to_csv(
+    os.path.join('data', 'token_counter.csv'),
+    index_label="Token", header=["Count"]
+)
 
 # %% BILU annotation columns per label
 longest_label_length: int = len(max(present_labels, key=len))
@@ -171,10 +160,10 @@ for label in present_labels:
     label_subset_df: pd.DataFrame = get_subset_data(annotations_df, label)
     subset_BILUs = []
 
-    for dict_access_index in tqdm(range(len(dataset_dict['text'])),
+    for dict_access_index in tqdm(range(len(dataset_dict['Text'])),
                                   desc=f"Converting {label} annotations to BILUs"):
         line_id: int = dict_access_index + 1
-        text: str = dataset_dict['text'][dict_access_index]
+        text: str = dataset_dict['Text'][dict_access_index]
         tokenised_text = dataset_dict['tokenised'][dict_access_index]
         annotations = label_subset_df.query(f"line_id == {line_id}")
         annotations = annotations['annotations'].values.tolist()
@@ -184,10 +173,11 @@ for label in present_labels:
 
     dataset_dict[f'{label}-BILUs'] = subset_BILUs
 
-
-# %% create a HuggingFace dataset
+# %% export the dataset
 if "tokenised" in dataset_dict:
     del dataset_dict['tokenised']
 dataset_df = pd.DataFrame.from_dict(dataset_dict)
-dataset_df.to_csv(os.path.join('data', 'BILUs.csv'))
-dataset_hf = Dataset.from_dict(dataset_dict)
+dataset_df.to_csv(
+    os.path.join('data', 'BILUs.csv'),
+    index=False
+)
