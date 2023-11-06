@@ -1,17 +1,13 @@
 # %% even more imports
 import os
 
-import pandas as pd
 from datasets import Dataset, DatasetDict
-from tqdm import tqdm
-from transformers import BertTokenizerFast, AutoTokenizer
+from transformers import BertTokenizerFast, AutoTokenizer, DataCollatorForTokenClassification
 
-
-# %% read BILU dataset and tokenise is
-bilus_df = pd.read_csv(os.path.join("data", "BILUs.csv"))
-bilus_hug = Dataset.from_pandas(bilus_df)
+# %% read BILU HuggingFace dataset from disk
+bilus_hug = Dataset.load_from_disk(dataset_path=os.path.join('data', 'BILUs_hf'))
 print(bilus_hug)
-
+print(bilus_hug.features)
 
 # %% split dataset into train test val
 train_testvalid = bilus_hug.train_test_split(test_size = 0.2)
@@ -24,7 +20,6 @@ bilus_hug = DatasetDict({
 )
 del train_testvalid, test_valid
 print(bilus_hug)
-
 
 # %% tokenisation
 checkpoint: str = "dbmdz/bert-base-historic-multilingual-cased"
@@ -40,6 +35,10 @@ def batch_tokenise(batch):
 bilus_hug_tokenised = bilus_hug.map(batch_tokenise, batched=True)
 print(bilus_hug_tokenised)
 
+# %% get a sample
+samples = bilus_hug_tokenised["train"].shuffle(seed=42).select(range(20))
+sample = samples[2]
+sample
 
 # %% debug
 pass
