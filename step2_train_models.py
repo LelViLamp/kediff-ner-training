@@ -38,12 +38,21 @@ def batch_tokenise_and_embed(batch):
     return tokenised_inputs
 
 
-bilus_hug_tokenised = bilus_hug.map(batch_tokenise_and_embed, batched=True)
+bilus_hug_tokenised = bilus_hug.map(
+    batch_tokenise_and_embed,
+    batched=True,
+    remove_columns=bilus_hug["train"].column_names
+)
 print(bilus_hug_tokenised)
 
 # %% get a sample
 sample = bilus_hug_tokenised["train"][1]
 sample
+
+# %% training pipeline
+data_collator = DataCollatorForTokenClassification(tokenizer=tokeniser, padding=True)
+batch = data_collator([bilus_hug_tokenised["train"][i] for i in range(2)])
+batch
 
 # %% debug
 pass
