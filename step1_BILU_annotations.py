@@ -2,7 +2,9 @@
 import os
 from collections import Counter
 
+import datasets
 import pandas as pd
+from datasets import Dataset, ClassLabel, Features
 from tokenizers import Encoding
 from tqdm import tqdm
 from transformers import AutoTokenizer, BertTokenizerFast
@@ -155,8 +157,12 @@ token_counter_df.to_csv(
 )
 
 # %% BILU annotation columns per label
+label_to_int = {'O': 0}
 longest_label_length: int = len(max(present_labels, key=len))
 for label in present_labels:
+    for prefix in ['B', 'I', 'L', 'U']:
+        label_to_int[f"{prefix}-{label}"] = len(label_to_int)
+
     label_subset_df: pd.DataFrame = get_subset_data(annotations_df, label)
     subset_BILUs = []
 
@@ -181,3 +187,21 @@ dataset_df.to_csv(
     os.path.join('data', 'BILUs.csv'),
     index=False
 )
+
+# %% convert to a HuggingFace dataset
+ner_class_label = ClassLabel(len(label_to_int), names=list(label_to_int.keys()))
+features = Features({
+    'Text': datasets.Value(dtype='string'),
+    'EVENT-BILUs': datasets.Sequence(feature=ner_class_label, length=-1),
+    'LOC-BILUs': datasets.Sequence(feature=ner_class_label, length=-1),
+    'MISC-BILUs': datasets.Sequence(feature=ner_class_label, length=-1),
+    'ORG-BILUs': datasets.Sequence(feature=ner_class_label, length=-1),
+    'PER-BILUs': datasets.Sequence(feature=ner_class_label, length=-1),
+    'TIME-BILUs': datasets.Sequence(feature=ner_class_label, length=-1)
+})
+
+bilus_hug = Dataset.from_pandas(df=dataset_df, features=features)
+print(bilus_hug)
+print(bilus_hug.features)
+
+bilus_hug.save_to_disk(dataset_path=os.path.join('data', 'BILUs_hf'))
