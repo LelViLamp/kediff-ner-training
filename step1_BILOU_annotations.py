@@ -9,6 +9,8 @@ from tokenizers import Encoding
 from tqdm import tqdm
 from transformers import AutoTokenizer, BertTokenizerFast
 
+from helper import model_checkpoint
+
 # %% read data from CSVs
 raw_text_df = (
     pd.read_csv(filepath_or_buffer=os.path.join("data", "text.csv"))
@@ -22,8 +24,7 @@ annotations_df = (
 )
 
 # %% get yourself a tokeniser
-checkpoint: str = "dbmdz/bert-base-historic-multilingual-cased"
-tokeniser: BertTokenizerFast = AutoTokenizer.from_pretrained(checkpoint)
+tokeniser: BertTokenizerFast = AutoTokenizer.from_pretrained(model_checkpoint)
 print("This is a fast tokeniser?", tokeniser.is_fast)
 
 # %% which labels are there in the dataset?

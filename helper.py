@@ -1,3 +1,6 @@
+model_checkpoint: str = "dbmdz/bert-base-historic-multilingual-cased"
+
+
 def print_aligned(
         list1: list,
         list2: list
