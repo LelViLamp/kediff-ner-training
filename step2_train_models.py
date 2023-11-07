@@ -121,8 +121,9 @@ model.config.num_labels
 
 
 # %% training
+trained_model_name = "oalz-1788-q1-ner-PER"
 args = TrainingArguments(
-    "oalz-1788-q1-ner",
+    trained_model_name,
     evaluation_strategy="epoch",
     save_strategy="epoch",
     learning_rate=2e-5,
@@ -140,7 +141,7 @@ trainer = Trainer(
     tokenizer=tokeniser,
 )
 trainer.train()
-trainer.save_model(os.path.join('data', 'oalz-1788-q1-ner-PER'))
+trainer.save_model(os.path.join('data', trained_model_name))
 
 
 # %% debug
