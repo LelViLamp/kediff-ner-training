@@ -140,7 +140,7 @@ trainer = Trainer(
     tokenizer=tokeniser,
 )
 trainer.train()
-
+trainer.save_model(os.path.join('data', 'oalz-1788-q1-ner-PER'))
 
 
 # %% debug
