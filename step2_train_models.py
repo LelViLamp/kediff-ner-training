@@ -1,8 +1,11 @@
 # %% even more imports
 import os
 
+import evaluate
 from datasets import Dataset, DatasetDict
 from transformers import BertTokenizerFast, AutoTokenizer, DataCollatorForTokenClassification
+
+from helper import print_aligned
 
 # %% read BILU HuggingFace dataset from disk
 bilus_hug = Dataset.load_from_disk(dataset_path=os.path.join('data', 'BILUs_hf'))
@@ -10,8 +13,8 @@ print(bilus_hug)
 print(bilus_hug.features)
 
 # %% split dataset into train test val
-train_testvalid = bilus_hug.train_test_split(test_size = 0.2, seed = 42)
-test_valid = train_testvalid['test'].train_test_split(test_size = 0.5, seed = 42)
+train_testvalid = bilus_hug.train_test_split(test_size=0.2, seed=42)
+test_valid = train_testvalid['test'].train_test_split(test_size=0.5, seed=42)
 # gather everyone if you want to have a single DatasetDict
 bilus_hug = DatasetDict({
     'train': train_testvalid['train'],
@@ -66,6 +69,21 @@ print(batch['labels'])
 for i in range(2):
     print(bilus_hug_tokenised["train"][i]["labels"])
 
+# %% scaffold a metric
+metric = evaluate.load("seqeval")
+
+label_names = bilus_hug["train"].features["PER-BILUs"].feature.names
+
+labels = bilus_hug["train"][1]["PER-BILUs"]
+labels = [label_names[i] for i in labels[1:-1]]
+
+# fake predictions
+predictions = labels.copy()
+predictions[2] = "B-PER"
+predictions[3] = "I-PER"
+
+print_aligned(labels, predictions)
+metric.compute(predictions=[predictions], references=[labels])
 
 # %% debug
 pass
