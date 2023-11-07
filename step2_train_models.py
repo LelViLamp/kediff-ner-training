@@ -7,22 +7,22 @@ from transformers import BertTokenizerFast, AutoTokenizer, DataCollatorForTokenC
 
 from helper import print_aligned
 
-# %% read BILU HuggingFace dataset from disk
-bilus_hug = Dataset.load_from_disk(dataset_path=os.path.join('data', 'BILUs_hf'))
-print(bilus_hug)
-print(bilus_hug.features)
+# %% read BILOU HuggingFace dataset from disk
+BILOUs_hug = Dataset.load_from_disk(dataset_path=os.path.join('data', 'BILOUs_hf'))
+print(BILOUs_hug)
+print(BILOUs_hug.features)
 
 # %% split dataset into train test val
-train_testvalid = bilus_hug.train_test_split(test_size=0.2, seed=42)
+train_testvalid = BILOUs_hug.train_test_split(test_size=0.2, seed=42)
 test_valid = train_testvalid['test'].train_test_split(test_size=0.5, seed=42)
 # gather everyone if you want to have a single DatasetDict
-bilus_hug = DatasetDict({
+BILOUs_hug = DatasetDict({
     'train': train_testvalid['train'],
     'test': test_valid['test'],
     'validation': test_valid['train']}
 )
 del train_testvalid, test_valid
-print(bilus_hug)
+print(BILOUs_hug)
 
 # %% tokenisation
 checkpoint: str = "dbmdz/bert-base-historic-multilingual-cased"
@@ -32,49 +32,49 @@ print(f"Is '{checkpoint}' a fast tokeniser?", tokeniser.is_fast)
 
 def batch_embed(batch):
     # align annotation with added [CLS] and [SEP]
-    for bilu_column in ['EVENT-BILUs', 'LOC-BILUs', 'MISC-BILUs', 'ORG-BILUs', 'PER-BILUs', 'TIME-BILUs']:
-        all_labels = batch[bilu_column]
+    for BILOU_column in ['EVENT-BILOUs', 'LOC-BILOUs', 'MISC-BILOUs', 'ORG-BILOUs', 'PER-BILOUs', 'TIME-BILOUs']:
+        all_labels = batch[BILOU_column]
         new_labels = [[-100, *labels[1:-1], -100] for labels in all_labels]
-        batch[bilu_column] = new_labels
+        batch[BILOU_column] = new_labels
     return batch
 
 
-bilus_hug = bilus_hug.map(batch_embed, batched=True)
+BILOUs_hug = BILOUs_hug.map(batch_embed, batched=True)
 
 
 def batch_tokenise(batch):
     # tokenise
     tokenised_inputs = tokeniser(batch['Text'], truncation=True)
-    tokenised_inputs["labels"] = batch['PER-BILUs']
+    tokenised_inputs["labels"] = batch['PER-BILOUs']
     return tokenised_inputs
 
 
-bilus_hug_tokenised = bilus_hug.map(
+BILOUs_hug_tokenised = BILOUs_hug.map(
     batch_tokenise,
     batched=True,
-    remove_columns=bilus_hug["train"].column_names
+    remove_columns=BILOUs_hug["train"].column_names
 )
-print(bilus_hug_tokenised)
+print(BILOUs_hug_tokenised)
 
 # %% get a sample
-sample = bilus_hug_tokenised["train"][1]
+sample = BILOUs_hug_tokenised["train"][1]
 sample
 
 # %% data collation
 data_collator = DataCollatorForTokenClassification(tokenizer=tokeniser, padding=True)
-batch = data_collator([bilus_hug_tokenised["train"][i] for i in range(2)])
+batch = data_collator([BILOUs_hug_tokenised["train"][i] for i in range(2)])
 print(batch)
 print(batch['labels'])
 
 for i in range(2):
-    print(bilus_hug_tokenised["train"][i]["labels"])
+    print(BILOUs_hug_tokenised["train"][i]["labels"])
 
 # %% scaffold a metric
 metric = evaluate.load("seqeval")
 
-label_names = bilus_hug["train"].features["PER-BILUs"].feature.names
+label_names = BILOUs_hug["train"].features["PER-BILOUs"].feature.names
 
-labels = bilus_hug["train"][1]["PER-BILUs"]
+labels = BILOUs_hug["train"][1]["PER-BILOUs"]
 labels = [label_names[i] for i in labels[1:-1]]
 
 # fake predictions

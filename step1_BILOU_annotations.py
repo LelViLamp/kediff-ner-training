@@ -80,7 +80,7 @@ def merge_annotations_and_text(
     return merged
 
 
-def annotations_to_token_BILUs(
+def annotations_to_token_BILOUs(
         tokenised: Encoding,
         annotations
 ):
@@ -142,7 +142,7 @@ token_counter_df.to_csv(
     index_label="Token", header=["Count"]
 )
 
-# %% BILU annotation columns per label
+# %% BILOU annotation columns per label
 label_to_int = {'O': 0}
 longest_label_length: int = len(max(present_labels, key=len))
 for label in present_labels:
@@ -150,27 +150,27 @@ for label in present_labels:
         label_to_int[f"{prefix}-{label}"] = len(label_to_int)
 
     label_subset_df: pd.DataFrame = get_subset_data(annotations_df, label)
-    subset_BILUs = []
+    subset_BILOUs = []
 
     for dict_access_index in tqdm(range(len(dataset_dict['Text'])),
-                                  desc=f"Converting {label} annotations to BILUs"):
+                                  desc=f"Converting {label} annotations to BILOUs"):
         line_id: int = dict_access_index + 1
         text: str = dataset_dict['Text'][dict_access_index]
         tokenised_text = dataset_dict['tokenised'][dict_access_index]
         annotations = label_subset_df.query(f"line_id == {line_id}")
         annotations = annotations['annotations'].values.tolist()
 
-        BILUs = annotations_to_token_BILUs(tokenised_text, annotations)
-        subset_BILUs.append(BILUs)
+        BILOUs = annotations_to_token_BILOUs(tokenised_text, annotations)
+        subset_BILOUs.append(BILOUs)
 
-    dataset_dict[f'{label}-BILUs'] = subset_BILUs
+    dataset_dict[f'{label}-BILOUs'] = subset_BILOUs
 
 # %% export the dataset
 if "tokenised" in dataset_dict:
     del dataset_dict['tokenised']
 dataset_df = pd.DataFrame.from_dict(dataset_dict)
 dataset_df.to_csv(
-    os.path.join('data', 'BILUs.csv'),
+    os.path.join('data', 'BILOUs.csv'),
     index=False
 )
 
@@ -178,16 +178,16 @@ dataset_df.to_csv(
 ner_class_label = ClassLabel(len(label_to_int), names=list(label_to_int.keys()))
 features = Features({
     'Text': datasets.Value(dtype='string'),
-    'EVENT-BILUs': datasets.Sequence(feature=ner_class_label, length=-1),
-    'LOC-BILUs': datasets.Sequence(feature=ner_class_label, length=-1),
-    'MISC-BILUs': datasets.Sequence(feature=ner_class_label, length=-1),
-    'ORG-BILUs': datasets.Sequence(feature=ner_class_label, length=-1),
-    'PER-BILUs': datasets.Sequence(feature=ner_class_label, length=-1),
-    'TIME-BILUs': datasets.Sequence(feature=ner_class_label, length=-1)
+    'EVENT-BILOUs': datasets.Sequence(feature=ner_class_label, length=-1),
+    'LOC-BILOUs': datasets.Sequence(feature=ner_class_label, length=-1),
+    'MISC-BILOUs': datasets.Sequence(feature=ner_class_label, length=-1),
+    'ORG-BILOUs': datasets.Sequence(feature=ner_class_label, length=-1),
+    'PER-BILOUs': datasets.Sequence(feature=ner_class_label, length=-1),
+    'TIME-BILOUs': datasets.Sequence(feature=ner_class_label, length=-1)
 })
 
-bilus_hug = Dataset.from_pandas(df=dataset_df, features=features)
-print(bilus_hug)
-print(bilus_hug.features)
+BILOUs_hug = Dataset.from_pandas(df=dataset_df, features=features)
+print(BILOUs_hug)
+print(BILOUs_hug.features)
 
-bilus_hug.save_to_disk(dataset_path=os.path.join('data', 'BILUs_hf'))
+BILOUs_hug.save_to_disk(dataset_path=os.path.join('data', 'BILOUs_hf'))
