@@ -1,6 +1,7 @@
 # %% duty-free imports
 import os
 from collections import Counter
+from typing import List
 
 import datasets
 import pandas as pd
@@ -84,11 +85,11 @@ def merge_annotations_and_text(
 def annotations_to_token_BILOUs(
         tokenised: Encoding,
         annotations
-):
+) -> List[str]:
     # https://www.lighttag.io/blog/sequence-labeling-with-transformers/example
     tokens = tokenised.tokens
     # make a list to store our labels the same length as our tokens
-    aligned_labels = ["O"] * len(tokens)
+    aligned_labels: list[str] = ["O"] * len(tokens)
 
     if len(annotations) == 0:
         return aligned_labels
@@ -124,6 +125,26 @@ def annotations_to_token_BILOUs(
     return aligned_labels
 
 
+def convert_BILOUs_to_IOBs(bilous: List[str]) -> List[str]:
+    """
+    Converts BILOU annotations into IOB annotations by replacing
+    "L-" tags with "I-" and "U-" tags with "B-"
+
+    :param bilous: List of BILOU tags as strings
+    :return: List of IOB tags, as long as input list
+    """
+    iobs: List[str] = []
+
+    for tag in bilous:
+        if tag.startswith("L"):
+            tag = "I" + tag.removeprefix("L")
+        elif tag.startswith("U"):
+            tag = "B" + tag.removeprefix("U")
+        iobs.append(tag)
+
+    return iobs
+
+
 # %% tokenise
 dataset_dict = {'Text': raw_text_df['text'].values.tolist()}
 token_counter = Counter()
@@ -143,28 +164,36 @@ token_counter_df.to_csv(
     index_label="Token", header=["Count"]
 )
 
-# %% BILOU annotation columns per label
+# %% BILOU and IOB annotation columns per label
 label_to_int = {'O': 0}
-longest_label_length: int = len(max(present_labels, key=len))
 for label in present_labels:
     for prefix in ['B', 'I', 'L', 'U']:
         label_to_int[f"{prefix}-{label}"] = len(label_to_int)
 
     label_subset_df: pd.DataFrame = get_subset_data(annotations_df, label)
     subset_BILOUs = []
+    subset_IOBs = []
 
-    for dict_access_index in tqdm(range(len(dataset_dict['Text'])),
-                                  desc=f"Converting {label} annotations to BILOUs"):
+    for dict_access_index in tqdm(
+            range(len(dataset_dict['Text'])),
+            desc=f"Converting {label} annotations to BILOUs and IOBs"
+    ):
         line_id: int = dict_access_index + 1
         text: str = dataset_dict['Text'][dict_access_index]
         tokenised_text = dataset_dict['tokenised'][dict_access_index]
         annotations = label_subset_df.query(f"line_id == {line_id}")
         annotations = annotations['annotations'].values.tolist()
 
-        BILOUs = annotations_to_token_BILOUs(tokenised_text, annotations)
-        subset_BILOUs.append(BILOUs)
+        bilous = annotations_to_token_BILOUs(tokenised_text, annotations)
+        subset_BILOUs.append(bilous)
+
+        iobs = convert_BILOUs_to_IOBs(bilous)
+        subset_IOBs.append(iobs)
+    del bilous, iobs
 
     dataset_dict[f'{label}-BILOUs'] = subset_BILOUs
+    dataset_dict[f'{label}-IOBs'] = subset_IOBs
+del subset_BILOUs, subset_IOBs
 
 # %% export the dataset
 if "tokenised" in dataset_dict:
@@ -180,11 +209,17 @@ ner_class_label = ClassLabel(len(label_to_int), names=list(label_to_int.keys()))
 features = Features({
     'Text': datasets.Value(dtype='string'),
     'EVENT-BILOUs': datasets.Sequence(feature=ner_class_label, length=-1),
+    'EVENT-IOBs': datasets.Sequence(feature=ner_class_label, length=-1),
     'LOC-BILOUs': datasets.Sequence(feature=ner_class_label, length=-1),
+    'LOC-IOBs': datasets.Sequence(feature=ner_class_label, length=-1),
     'MISC-BILOUs': datasets.Sequence(feature=ner_class_label, length=-1),
+    'MISC-IOBs': datasets.Sequence(feature=ner_class_label, length=-1),
     'ORG-BILOUs': datasets.Sequence(feature=ner_class_label, length=-1),
+    'ORG-IOBs': datasets.Sequence(feature=ner_class_label, length=-1),
     'PER-BILOUs': datasets.Sequence(feature=ner_class_label, length=-1),
-    'TIME-BILOUs': datasets.Sequence(feature=ner_class_label, length=-1)
+    'PER-IOBs': datasets.Sequence(feature=ner_class_label, length=-1),
+    'TIME-BILOUs': datasets.Sequence(feature=ner_class_label, length=-1),
+    'TIME-IOBs': datasets.Sequence(feature=ner_class_label, length=-1)
 })
 
 BILOUs_hug = Dataset.from_pandas(df=dataset_df, features=features)
