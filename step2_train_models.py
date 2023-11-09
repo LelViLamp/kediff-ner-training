@@ -1,6 +1,6 @@
 # %%
-!pip install datasets evaluate transformers[sentencepiece]
-!pip install accelerate
+#!pip install datasets evaluate transformers[sentencepiece]
+#!pip install accelerate
 
 # %%
 import os
@@ -37,7 +37,7 @@ try:
 except:
     DATA_DIR = os.path.join('data')
     pass
-DATA_DIR
+print(f"{DATA_DIR=}", '-->', os.path.abspath(DATA_DIR))
 
 # %%
 BILOUs_hug = Dataset.load_from_disk(dataset_path=os.path.join(DATA_DIR, 'BILOUs_hf'))
@@ -65,10 +65,13 @@ print(f"Is '{model_checkpoint}' a fast tokeniser?", tokeniser.is_fast)
 
 def batch_embed(batch):
     # align annotation with added [CLS] and [SEP]
-    for BILOU_column in ['EVENT-BILOUs', 'LOC-BILOUs', 'MISC-BILOUs', 'ORG-BILOUs', 'PER-BILOUs', 'TIME-BILOUs']:
-        all_labels = batch[BILOU_column]
+    for column in [
+        'EVENT-BILOUs', 'LOC-BILOUs', 'MISC-BILOUs', 'ORG-BILOUs', 'PER-BILOUs', 'TIME-BILOUs',
+        'EVENT-IOBs', 'LOC-IOBs', 'MISC-IOBs', 'ORG-IOBs', 'PER-IOBs', 'TIME-IOBs'
+    ]:
+        all_labels = batch[column]
         new_labels = [[-100, *labels[1:-1], -100] for labels in all_labels]
-        batch[BILOU_column] = new_labels
+        batch[column] = new_labels
     return batch
 
 
@@ -78,7 +81,7 @@ BILOUs_hug = BILOUs_hug.map(batch_embed, batched=True)
 def batch_tokenise(batch):
     # tokenise
     tokenised_inputs = tokeniser(batch['Text'], truncation=True)
-    tokenised_inputs["labels"] = batch['PER-BILOUs']
+    tokenised_inputs["labels"] = batch['PER-IOBs']
     return tokenised_inputs
 
 
@@ -108,10 +111,9 @@ for i in range(2):
 # %%
 metric = evaluate.load("seqeval")
 
-label_names = BILOUs_hug["train"].features["PER-BILOUs"].feature.names
+label_names = BILOUs_hug["train"].features["PER-IOBs"].feature.names
 
-labels = BILOUs_hug["train"][1]["PER-BILOUs"]
-labels[10] = 18  # todo UserWarning: L-PER seems not to be NE tag. mimimi
+labels = BILOUs_hug["train"][1]["PER-IOBs"]
 labels = [label_names[i] for i in labels[1:-1]]
 
 # fake predictions
@@ -119,7 +121,6 @@ predictions = labels.copy()
 predictions[2] = "B-PER"
 predictions[3] = "I-PER"
 
-# todo allow BILOUs not just IOBs (warning AND WRONG SCORES when using U & L)
 print_aligned(labels, predictions)
 metric.compute(predictions=[predictions], references=[labels])
 
