@@ -11,11 +11,10 @@ from datasets import Dataset, DatasetDict
 from transformers import BertTokenizerFast, AutoTokenizer, DataCollatorForTokenClassification, \
     AutoModelForTokenClassification, TrainingArguments, Trainer
 
-
-# %%
+# %% some parameters
 model_checkpoint: str = "dbmdz/bert-base-historic-multilingual-cased"
 
-
+# %%
 def print_aligned(
         list1: list,
         list2: list
@@ -167,7 +166,7 @@ args = TrainingArguments(
     evaluation_strategy="epoch",
     save_strategy="epoch",
     learning_rate=2e-5,
-    num_train_epochs=3,
+    num_train_epochs=10,
     weight_decay=0.01
 )
 

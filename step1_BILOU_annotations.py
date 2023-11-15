@@ -10,7 +10,8 @@ from tokenizers import Encoding
 from tqdm import tqdm
 from transformers import AutoTokenizer, BertTokenizerFast
 
-from helper import model_checkpoint
+# %% some parameters
+model_checkpoint = "dbmdz/bert-base-historic-multilingual-cased"
 
 # %% read data from CSVs
 raw_text_df = (
