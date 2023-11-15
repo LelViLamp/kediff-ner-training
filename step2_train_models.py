@@ -1,8 +1,8 @@
-# %%
-#!pip install datasets evaluate transformers[sentencepiece]
-#!pip install accelerate
+# %% install some stuff on colab
+# !pip install datasets evaluate transformers[sentencepiece]
+# !pip install accelerate
 
-# %%
+# %% duty-free imports
 import os
 
 import evaluate
@@ -14,7 +14,8 @@ from transformers import BertTokenizerFast, AutoTokenizer, DataCollatorForTokenC
 # %% some parameters
 model_checkpoint: str = "dbmdz/bert-base-historic-multilingual-cased"
 
-# %%
+
+# %% define some functions
 def print_aligned(
         list1: list,
         list2: list
@@ -28,23 +29,30 @@ def print_aligned(
     print(line1)
     print(line2)
 
-# %%
+
+# %% set DATA_DIR depending on whether we're working in Colab
 try:
     from google.colab import drive
+
+    print(
+        "You work on Colab. Gentle as we are, we will mount Drive for you. "
+        "It'd help if you allowed this in the popup that opens."
+    )
     drive.mount('/content/drive')
     DATA_DIR = os.path.join('drive', 'MyDrive', 'KEDiff', 'data')
 except:
+    print("You do not work on Colab")
     DATA_DIR = os.path.join('data')
     pass
+
 print(f"{DATA_DIR=}", '-->', os.path.abspath(DATA_DIR))
 
-# %%
+# %% import dataset
 BILOUs_hug = Dataset.load_from_disk(dataset_path=os.path.join(DATA_DIR, 'BILOUs_hf'))
 print("Dataset:", BILOUs_hug, sep='\n')
 print("Features:", BILOUs_hug.features, sep='\n')
 
-
-# %%
+# %% split dataset --> train, test, validation
 train_testvalid = BILOUs_hug.train_test_split(test_size=0.2, seed=42)
 test_valid = train_testvalid['test'].train_test_split(test_size=0.5, seed=42)
 # gather everyone if you want to have a single DatasetDict
@@ -56,8 +64,7 @@ BILOUs_hug = DatasetDict({
 del train_testvalid, test_valid
 print(BILOUs_hug)
 
-
-# %%
+# %% tokenise
 tokeniser: BertTokenizerFast = AutoTokenizer.from_pretrained(model_checkpoint)
 print(f"Is '{model_checkpoint}' a fast tokeniser?", tokeniser.is_fast)
 
@@ -91,13 +98,12 @@ BILOUs_hug_tokenised = BILOUs_hug.map(
 )
 print(BILOUs_hug_tokenised)
 
-
-# %%
+# %% get a sample
 sample = BILOUs_hug_tokenised["train"][1]
-sample
+print(sample)
+del sample
 
-
-# %%
+# %% collate it
 data_collator = DataCollatorForTokenClassification(tokenizer=tokeniser, padding=True)
 batch = data_collator([BILOUs_hug_tokenised["train"][i] for i in range(2)])
 print(batch)
@@ -105,25 +111,35 @@ print(batch['labels'])
 
 for i in range(2):
     print(BILOUs_hug_tokenised["train"][i]["labels"])
+del i
 
-
-# %%
-metric = evaluate.load("seqeval")
-
+# %% test different metrics
 label_names = BILOUs_hug["train"].features["PER-IOBs"].feature.names
 
-labels = BILOUs_hug["train"][1]["PER-IOBs"]
-labels = [label_names[i] for i in labels[1:-1]]
+batch = {'references': [], 'predictions': []}
+for i in [0, 1]:
+    labels = BILOUs_hug["train"][i]["PER-IOBs"]
+    labels = [label_names[i] for i in labels[1:-1]]
+    # fake predictions
+    predictions = labels.copy()
+    predictions[2] = "B-PER"
+    predictions[3] = "I-PER"
 
-# fake predictions
-predictions = labels.copy()
-predictions[2] = "B-PER"
-predictions[3] = "I-PER"
+    print_aligned(labels, predictions)
 
-print_aligned(labels, predictions)
-metric.compute(predictions=[predictions], references=[labels])
+    batch['references'] += [labels]
+    batch['predictions'] += [predictions]
+del i, labels, predictions
 
+# calculate metrics
+for metric_name in ["seqeval", "poseval"]:
+    print(f"Now evaluating using {metric_name=}")
+    metric = evaluate.load(metric_name)
+    print(metric.compute(predictions=batch['predictions'], references=batch['references']))
+del batch, metric, metric_name
 
+# %% choose poseval as metric
+metric = evaluate.load('poseval')
 
 # %%
 def compute_metrics(eval_preds):
@@ -145,7 +161,6 @@ def compute_metrics(eval_preds):
     }
 
 
-
 # %%
 id2label = {i: label for i, label in enumerate(label_names)}
 label2id = {v: k for k, v in id2label.items()}
@@ -156,8 +171,6 @@ model = AutoModelForTokenClassification.from_pretrained(
     label2id=label2id,
 )
 model.config.num_labels
-
-
 
 # %%
 trained_model_name = "oalz-1788-q1-ner-PER"
@@ -183,10 +196,5 @@ trainer = Trainer(
 trainer.train()
 trainer.save_model(os.path.join(DATA_DIR, trained_model_name))
 
-
-
 # %%
 pass
-
-
-
