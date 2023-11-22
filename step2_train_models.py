@@ -1,5 +1,5 @@
 # %% install some stuff on colab
-# !pip install datasets evaluate transformers[sentencepiece]
+# !pip install datasets evaluate transformers[sentencepiece] seqeval
 # !pip install accelerate
 
 # %% duty-free imports
@@ -55,6 +55,7 @@ print("Features:", BILOUs_hug.features, sep='\n')
 # %% split dataset --> train, test, validation
 train_testvalid = BILOUs_hug.train_test_split(test_size=0.2, seed=42)
 test_valid = train_testvalid['test'].train_test_split(test_size=0.5, seed=42)
+
 # gather everyone if you want to have a single DatasetDict
 BILOUs_hug = DatasetDict({
     'train': train_testvalid['train'],
@@ -135,8 +136,9 @@ del i, labels, predictions
 for metric_name in ["seqeval", "poseval"]:
     print(f"Now evaluating using {metric_name=}")
     metric = evaluate.load(metric_name)
-    print(metric.compute(predictions=batch['predictions'], references=batch['references']))
-del batch, metric, metric_name
+    metric_result = metric.compute(predictions=batch['predictions'], references=batch['references'])
+    print(metric_result)
+# del batch, metric, metric_name, metric_result
 
 # %% choose poseval as metric
 metric = evaluate.load('poseval')
@@ -152,12 +154,19 @@ def compute_metrics(eval_preds):
         [label_names[p] for (p, l) in zip(prediction, label) if l != -100]
         for prediction, label in zip(predictions, labels)
     ]
-    all_metrics = metric.compute(predictions=true_predictions, references=true_labels)
+    metric_result = metric.compute(predictions=true_predictions, references=true_labels)
     return {
-        "precision": all_metrics["overall_precision"],
-        "recall": all_metrics["overall_recall"],
-        "f1": all_metrics["overall_f1"],
-        "accuracy": all_metrics["overall_accuracy"],
+        "macro precision": metric_result["macro avg"]["precision"],
+        "macro recall": metric_result["macro avg"]["recall"],
+        "macro f1": metric_result["macro avg"]["f1-score"],
+        "macro support": metric_result["macro avg"]["support"],
+
+        "weighted precision": metric_result["weighted avg"]["precision"],
+        "weighted recall": metric_result["weighted avg"]["recall"],
+        "weighted f1": metric_result["weighted avg"]["f1-score"],
+        "weighted support": metric_result["weighted avg"]["support"],
+
+        "accuracy": metric_result["accuracy"],
     }
 
 
@@ -176,6 +185,7 @@ model.config.num_labels
 trained_model_name = "oalz-1788-q1-ner-PER"
 args = TrainingArguments(
     trained_model_name,
+    output_dir = os.path.join(DATA_DIR, trained_model_name),
     evaluation_strategy="epoch",
     save_strategy="epoch",
     learning_rate=2e-5,
