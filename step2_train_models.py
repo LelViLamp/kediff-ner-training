@@ -174,18 +174,19 @@ def compute_metrics(eval_preds):
 id2label = {i: label for i, label in enumerate(label_names)}
 label2id = {v: k for k, v in id2label.items()}
 
-model = AutoModelForTokenClassification.from_pretrained(
-    model_checkpoint,
-    id2label=id2label,
-    label2id=label2id,
-)
-model.config.num_labels
 
 # %%
 for label_type in ['EVENT', 'LOC', 'MISC', 'ORG', 'PER', 'TIME']:
     trained_model_name = f"oalz-1788-q1-ner-{label_type}"
 
     print(f"Now training '{trained_model_name}'")
+    
+    model = AutoModelForTokenClassification.from_pretrained(
+        model_checkpoint,
+        id2label=id2label,
+        label2id=label2id,
+    )
+    model.config.num_labels
 
     args = TrainingArguments(
         output_dir = os.path.join(DATA_DIR, trained_model_name),
