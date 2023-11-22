@@ -182,29 +182,31 @@ model = AutoModelForTokenClassification.from_pretrained(
 model.config.num_labels
 
 # %%
-trained_model_name = "oalz-1788-q1-ner-PER"
-args = TrainingArguments(
-    trained_model_name,
-    output_dir = os.path.join(DATA_DIR, trained_model_name),
-    evaluation_strategy="epoch",
-    save_strategy="epoch",
-    learning_rate=2e-5,
-    num_train_epochs=10,
-    weight_decay=0.01
-)
+for label_type in ['EVENT', 'LOC', 'MISC', 'ORG', 'PER', 'TIME']:
+    trained_model_name = f"oalz-1788-q1-ner-{label_type}"
 
-# todo store checkpoints on drive as well not just final model
-trainer = Trainer(
-    model=model,
-    args=args,
-    train_dataset=BILOUs_hug_tokenised["train"],
-    eval_dataset=BILOUs_hug_tokenised["validation"],
-    data_collator=data_collator,
-    compute_metrics=compute_metrics,
-    tokenizer=tokeniser,
-)
-trainer.train()
-trainer.save_model(os.path.join(DATA_DIR, trained_model_name))
+    print(f"Now training '{trained_model_name}'")
+
+    args = TrainingArguments(
+        output_dir = os.path.join(DATA_DIR, trained_model_name),
+        evaluation_strategy="epoch",
+        save_strategy="epoch",
+        learning_rate=2e-5,
+        num_train_epochs=5,
+        weight_decay=0.01
+    )
+
+    trainer = Trainer(
+        model=model,
+        args=args,
+        train_dataset=BILOUs_hug_tokenised["train"],
+        eval_dataset=BILOUs_hug_tokenised["validation"],
+        data_collator=data_collator,
+        compute_metrics=compute_metrics,
+        tokenizer=tokeniser,
+    )
+    trainer.train()
+    trainer.save_model(os.path.join(DATA_DIR, trained_model_name))
 
 # %%
 pass
