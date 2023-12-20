@@ -199,37 +199,4 @@ for label_type in ['EVENT', 'LOC', 'MISC', 'ORG', 'PER', 'TIME']:
     trainer.train()
     trainer.save_model(os.path.join(DATA_DIR, trained_model_name))
 
-# again cause it crashed before while training PER
-trained_model_name = f"oalz-1788-q1-ner-per"
-
-print(f"Now training '{trained_model_name}'")
-
-model = AutoModelForTokenClassification.from_pretrained(
-    model_checkpoint,
-    id2label=id2label,
-    label2id=label2id,
-)
-model.config.num_labels
-
-args = TrainingArguments(
-    output_dir = os.path.join(DATA_DIR, trained_model_name),
-    evaluation_strategy="epoch",
-    save_strategy="epoch",
-    learning_rate=2e-5,
-    num_train_epochs=5,
-    weight_decay=0.01
-)
-
-trainer = Trainer(
-    model=model,
-    args=args,
-    train_dataset=BILOUs_hug_tokenised["train"],
-    eval_dataset=BILOUs_hug_tokenised["validation"],
-    data_collator=data_collator,
-    compute_metrics=compute_metrics,
-    tokenizer=tokeniser,
-)
-trainer.train()
-trainer.save_model(os.path.join(DATA_DIR, trained_model_name))
-
 pass
