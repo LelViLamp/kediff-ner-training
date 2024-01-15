@@ -18,7 +18,7 @@ from datasets import Dataset, DatasetDict
 from transformers import BertTokenizerFast, AutoTokenizer, DataCollatorForTokenClassification, \
     AutoModelForTokenClassification, TrainingArguments, Trainer
 
-model_checkpoint: str = "dbmdz/bert-base-historic-multilingual-cased"
+TOKENISER_CHECKPOINT: str = "dbmdz/bert-base-historic-multilingual-cased"
 
 def print_aligned(
         list1: list,
@@ -45,8 +45,6 @@ try:
 except:
     print("You do not work on Colab")
     DATA_DIR = os.path.join('data')
-    pass
-
 print(f"{DATA_DIR=}", '-->', os.path.abspath(DATA_DIR))
 
 BILOUs_hug = Dataset.load_from_disk(dataset_path=os.path.join(DATA_DIR, 'BILOUs_hf'))
@@ -65,50 +63,49 @@ BILOUs_hug = DatasetDict({
 del train_testvalid, test_valid
 print(BILOUs_hug)
 
-tokeniser: BertTokenizerFast = AutoTokenizer.from_pretrained(model_checkpoint)
-print(f"Is '{model_checkpoint}' a fast tokeniser?", tokeniser.is_fast)
+tokeniser: BertTokenizerFast = AutoTokenizer.from_pretrained(TOKENISER_CHECKPOINT)
+print(f"Is '{TOKENISER_CHECKPOINT}' a fast tokeniser?", tokeniser.is_fast)
 
-
-def batch_embed(batch):
-    # align annotation with added [CLS] and [SEP]
-    for column in [
-        'EVENT-BILOUs', 'LOC-BILOUs', 'MISC-BILOUs', 'ORG-BILOUs', 'PER-BILOUs', 'TIME-BILOUs',
-        'EVENT-IOBs', 'LOC-IOBs', 'MISC-IOBs', 'ORG-IOBs', 'PER-IOBs', 'TIME-IOBs'
-    ]:
+def batch_embed_labels(batch):
+    # embed in [CLS] and [SEP] tokens as required by BERT models
+    for column in ['EVENT-BILOUs', 'LOC-BILOUs', 'MISC-BILOUs', 'ORG-BILOUs', 'PER-BILOUs', 'TIME-BILOUs',
+                   'EVENT-IOBs',   'LOC-IOBs',   'MISC-IOBs',   'ORG-IOBs',   'PER-IOBs',   'TIME-IOBs']:
         all_labels = batch[column]
         new_labels = [[-100, *labels[1:-1], -100] for labels in all_labels]
         batch[column] = new_labels
     return batch
-
-
-BILOUs_hug = BILOUs_hug.map(batch_embed, batched=True)
-
+BILOUs_hug = BILOUs_hug.map(batch_embed_labels, batched=True)
 
 def batch_tokenise(batch):
-    # tokenise
     tokenised_inputs = tokeniser(batch['Text'], truncation=True)
-    tokenised_inputs["labels"] = batch['PER-IOBs']
     return tokenised_inputs
-
-
-BILOUs_hug_tokenised = BILOUs_hug.map(
-    batch_tokenise,
-    batched=True,
-    remove_columns=BILOUs_hug["train"].column_names
-)
+BILOUs_hug_tokenised = BILOUs_hug.map(batch_tokenise, batched=True)
 print(BILOUs_hug_tokenised)
 
-sample = BILOUs_hug_tokenised["train"][1]
+def batch_set_labels_column(batch, column_name):
+    batch["labels"] = batch[column_name]
+    return batch
+
+BILOUs_hug["train"].column_names
+
+# adapt this for each label type
+BILOUs_hug_tokenised_PER = BILOUs_hug_tokenised.map(
+    batch_set_labels_column,
+    fn_kwargs={'column_name': 'PER-IOBs'},
+    batched=True,
+    remove_columns=BILOUs_hug["train"].column_names)
+
+sample = BILOUs_hug_tokenised_PER["train"][1]
 print(sample)
 del sample
 
 data_collator = DataCollatorForTokenClassification(tokenizer=tokeniser, padding=True)
-batch = data_collator([BILOUs_hug_tokenised["train"][i] for i in range(2)])
+batch = data_collator([BILOUs_hug_tokenised_PER["train"][i] for i in range(2)])
 print(batch)
 print(batch['labels'])
 
 for i in range(2):
-    print(BILOUs_hug_tokenised["train"][i]["labels"])
+    print(BILOUs_hug_tokenised_PER["train"][i]["labels"])
 del i
 
 label_names = BILOUs_hug["train"].features["PER-IOBs"].feature.names
@@ -171,8 +168,15 @@ for label_type in ['EVENT', 'LOC', 'MISC', 'ORG', 'PER', 'TIME']:
 
     print(f"Now training '{trained_model_name}'")
 
+    print("Compose the relevant tokenised and annotated dataset")
+    label_ds = BILOUs_hug_tokenised.map(
+        batch_set_labels_column,
+        fn_kwargs={'column_name': f'{label_type}-IOBs'},
+        batched=True,
+        remove_columns=BILOUs_hug["train"].column_names)
+
     model = AutoModelForTokenClassification.from_pretrained(
-        model_checkpoint,
+        TOKENISER_CHECKPOINT,
         id2label=id2label,
         label2id=label2id,
     )
@@ -190,8 +194,8 @@ for label_type in ['EVENT', 'LOC', 'MISC', 'ORG', 'PER', 'TIME']:
     trainer = Trainer(
         model=model,
         args=args,
-        train_dataset=BILOUs_hug_tokenised["train"],
-        eval_dataset=BILOUs_hug_tokenised["validation"],
+        train_dataset=label_ds["train"],
+        eval_dataset=label_ds["validation"],
         data_collator=data_collator,
         compute_metrics=compute_metrics,
         tokenizer=tokeniser,
