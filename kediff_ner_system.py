@@ -1,4 +1,5 @@
 # preferrably imported as kners as it sounds fun
+# generated from step3_production_pipeline.ipynb
 
 import os
 from typing import Any
@@ -77,6 +78,9 @@ class KediffNerSystem:
 
         if self.print_debug_messages_to_console:
             print(f"Class initialised")
+
+    def __call__(self, *args: Any, **kwds: Any) -> list[Any]:
+        return self.ner(text=args[0])
 
     def find_entities(self, text: str) -> dict[str, Any]:
         """
