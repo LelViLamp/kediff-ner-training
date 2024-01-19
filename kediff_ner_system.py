@@ -1,3 +1,5 @@
+# preferrably imported as kners as it sounds fun
+
 import os
 from typing import Any
 
@@ -5,6 +7,7 @@ import tabulate
 from tqdm import tqdm
 from transformers import AutoTokenizer, pipeline, Pipeline
 
+TOKENISER_CHECKPOINT = "dbmdz/bert-base-historic-multilingual-cased"
 CLASSIFIER_NAME_BASE = "oalz-1788-q1-ner-"
 CLASSIFIER_MODEL_VERSION = "2024-01-15"
 ENTITY_TYPES = ["EVENT", "LOC", "MISC", "ORG", "PER", "TIME"]
@@ -56,7 +59,7 @@ class KediffNerSystem:
 
         self.tokeniser_checkpoint = tokeniser_checkpoint
         if self.print_debug_messages_to_console:
-            print(f"Loading tokeniser {self.tokeniser_checkpoint}")
+            print(f"Loading tokeniser '{self.tokeniser_checkpoint}'")
         self.tokeniser = AutoTokenizer.from_pretrained(tokeniser_checkpoint)
 
         # initialise the models
@@ -66,11 +69,14 @@ class KediffNerSystem:
         for label_type in tqdm(classifier_paths.keys(), disable=not self.print_debug_messages_to_console):
             classifiers[label_type] = pipeline(
                 "token-classification",
-                model=os.path.abspath(ner_model_paths[label_type]),
+                model=os.path.abspath(classifier_paths[label_type]),
                 aggregation_strategy="simple"
             )
         self.classifier_paths = classifier_paths
         self.classifiers = classifiers
+
+        if self.print_debug_messages_to_console:
+            print(f"Class initialised")
 
     def find_entities(self, text: str) -> dict[str, Any]:
         """
