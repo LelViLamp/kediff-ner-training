@@ -80,6 +80,7 @@ class KediffNerSystem:
             print(f"Class initialised")
 
     def __call__(self, *args: Any, **kwds: Any) -> list[Any]:
+        """Shortcut to call ner(text)"""
         return self.ner(text=args[0])
 
     def find_entities(self, text: str) -> dict[str, Any]:
