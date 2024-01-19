@@ -5,6 +5,18 @@ import tabulate
 from tqdm import tqdm
 from transformers import AutoTokenizer, pipeline, Pipeline
 
+CLASSIFIER_NAME_BASE = "oalz-1788-q1-ner-"
+CLASSIFIER_MODEL_VERSION = "2024-01-15"
+ENTITY_TYPES = ["EVENT", "LOC", "MISC", "ORG", "PER", "TIME"]
+SELECTED_EPOCHS = {
+    "EVENT": "checkpoint-1393",
+    "LOC": "checkpoint-1393",
+    "MISC": "checkpoint-2786",
+    "ORG": "checkpoint-1393",
+    "PER": "checkpoint-2786",
+    "TIME": "checkpoint-1393"
+}
+
 
 class KediffNerSystem:
     """
@@ -77,7 +89,7 @@ class KediffNerSystem:
 
         entities: dict[str, Any] = {
             label_type: self.classifiers[label_type](text)
-            for label_type in label_types
+            for label_type in ENTITY_TYPES
         }
         return entities
 
@@ -151,24 +163,14 @@ class KediffNerSystem:
 
 if __name__ == "__main__":
     DATA_DIR = os.path.join('data')
-    CHECKPOINT_NAME_BASE = "oalz-1788-q1-ner-"
-    TRAINED_DIR = os.path.join(DATA_DIR, "trained_models", "2024-01-15")
-    label_types = ["EVENT", "LOC", "MISC", "ORG", "PER", "TIME"]
-    selected_epochs = {
-        "EVENT": "checkpoint-1393",
-        "LOC": "checkpoint-1393",
-        "MISC": "checkpoint-2786",
-        "ORG": "checkpoint-1393",
-        "PER": "checkpoint-2786",
-        "TIME": "checkpoint-1393"
-    }
-    ner_model_paths = {
-        label_type: os.path.join(TRAINED_DIR,
-                                 "".join([CHECKPOINT_NAME_BASE, label_type]),
-                                 selected_epochs[label_type])
-        for label_type in label_types
-    }
+    TRAINED_DIR = os.path.join(DATA_DIR, "trained_models", CLASSIFIER_MODEL_VERSION)
 
+    ner_model_paths = {
+        entity_type: os.path.join(TRAINED_DIR,
+                                  "".join([CLASSIFIER_NAME_BASE, entity_type]),
+                                  SELECTED_EPOCHS[entity_type])
+        for entity_type in ENTITY_TYPES
+    }
     sample_texts = [
         "(Das hei\u00dft ab ovo anfangen, wie's jener that, der vom deutschen Gleichgewichte handeln wollte, "
         "und von Adam anfieng.)",
