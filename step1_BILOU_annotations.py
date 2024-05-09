@@ -1,25 +1,28 @@
 # %% duty-free imports
 import os
 from collections import Counter
-from typing import List
+from typing import List, Any, Union, Set, Dict
 
 import datasets
 import pandas as pd
 from datasets import Dataset, ClassLabel, Features
+from numpy import ndarray
+from pandas import DataFrame
 from tokenizers import Encoding
 from tqdm import tqdm
 from transformers import AutoTokenizer, BertTokenizerFast
+from transformers.tokenization_utils_base import EncodingFast
 
 # %% some parameters
-model_checkpoint = "dbmdz/bert-base-historic-multilingual-cased"
+model_checkpoint: str = "dbmdz/bert-base-historic-multilingual-cased"
 
 # %% read data from CSVs
-raw_text_df = (
+raw_text_df: DataFrame = (
     pd.read_csv(filepath_or_buffer=os.path.join("data", "text.csv"))
     .drop(columns="Unnamed: 0")
     .set_index(keys="document_id")
 )
-annotations_df = (
+annotations_df: DataFrame = (
     pd.read_csv(filepath_or_buffer=os.path.join("data", "union_dataset.csv"))
     .drop(columns="Unnamed: 0")
     .set_index(keys="annotation_id")
@@ -30,7 +33,7 @@ tokeniser: BertTokenizerFast = AutoTokenizer.from_pretrained(model_checkpoint)
 print("This is a fast tokeniser?", tokeniser.is_fast)
 
 # %% which labels are there in the dataset?
-present_labels = (
+present_labels_df: ndarray = (
     annotations_df
     .filter(['label'])
     .drop_duplicates()
@@ -38,15 +41,15 @@ present_labels = (
     .to_numpy()
 )
 # unpack them, cause rn this is a list of one-element lists
-present_labels = [x[0] for x in present_labels]
+present_labels: list[str] = [x[0] for x in present_labels_df]
 
 
 # %% define some helper functions
 def get_subset_data(
-        annotations_df,
+        annotations_df: DataFrame,
         label: str
-):
-    subset = annotations_df.query(f'label == "{label}"')
+) -> DataFrame:
+    subset: DataFrame = annotations_df.query(f'label == "{label}"')
     # Create list of annotations per line
     subset = (
         subset
@@ -57,14 +60,15 @@ def get_subset_data(
     )
     # many thanks to @mozway on https://stackoverflow.com/a/77243869/13044791
     return subset
+    # end def
 
 
 def merge_annotations_and_text(
-        raw_text_df,
-        annotations_df
-):
+        raw_text_df: DataFrame,
+        annotations_df: DataFrame
+) -> DataFrame:
     # Merge annotations onto text
-    merged = (
+    merged: DataFrame = (
         pd.merge(
             left=raw_text_df,
             right=annotations_df,
@@ -81,100 +85,117 @@ def merge_annotations_and_text(
     )
     # https://stackoverflow.com/a/43899698/13044791
     return merged
+    # end def
 
 
 def annotations_to_token_BILOUs(
         tokenised: Encoding,
-        annotations
+        annotations: list[list[list[Union[int, str]]]]
 ) -> List[str]:
     # https://www.lighttag.io/blog/sequence-labeling-with-transformers/example
-    tokens = tokenised.tokens
+    tokens: list[str] = tokenised.tokens
     # make a list to store our labels the same length as our tokens
     aligned_labels: list[str] = ["O"] * len(tokens)
 
     if len(annotations) == 0:
         return aligned_labels
     else:
-        annotations = annotations[0]
+        annotation_subset: list[list[Union[int, str]]] = annotations[0]
 
-    for annotation in annotations:
-        start = annotation[0]
-        end = annotation[1]
-        label = annotation[2]
+    annotation: list[Union[int, str]]
+    for annotation in annotation_subset:
+        start: int = annotation[0]
+        end: int = annotation[1]
+        label: str = annotation[2]
 
         # a set that stores the token indices of the annotation
-        annotation_token_index_set = (set())
+        annotation_token_index_set: set[int] = (set())
+        char_index: int
         for char_index in range(start, end):
-            token_index = tokenised.char_to_token(char_index)
+            token_index: int = tokenised.char_to_token(char_index)
             if token_index is not None:
                 annotation_token_index_set.add(token_index)
+            # end for
         if len(annotation_token_index_set) == 1:
             # if there is only one token
-            token_index = annotation_token_index_set.pop()
-            prefix = ("U")  # This annotation spans one token so is prefixed with U for unique
+            token_index: int = annotation_token_index_set.pop()
+            prefix: str = ("U")  # This annotation spans one token so is prefixed with U for unique
             aligned_labels[token_index] = f"{prefix}-{label}"
         else:
-            last_token_in_anno_index = len(annotation_token_index_set) - 1
+            last_token_in_anno_index: int = len(annotation_token_index_set) - 1
+            num: int
             for num, token_index in enumerate(sorted(annotation_token_index_set)):
+                prefix: str
                 if num == 0:
-                    prefix = "B"
+                    prefix = "B"  # beginning
                 elif num == last_token_in_anno_index:
-                    prefix = "L"  # Its the last token
+                    prefix = "L"  # it's the last token
                 else:
-                    prefix = "I"  # We're inside of a multi token annotation
+                    prefix = "I"  # We're inside a multi token annotation
                 aligned_labels[token_index] = f"{prefix}-{label}"
+                # end for
+            # end else
+        # end for
     return aligned_labels
+    # end def
 
 
-def convert_BILOUs_to_IOBs(bilous: List[str]) -> List[str]:
+def convert_BILOUs_to_IOBs(BILOUs: List[str]) -> List[str]:
     """
-    Converts BILOU annotations into IOB annotations by replacing
-    "L-" tags with "I-" and "U-" tags with "B-"
+    Converts BILOU annotations into IOB annotations by replacing "L-" tags with "I-" and "U-" tags with "B-"
 
-    :param bilous: List of BILOU tags as strings
+    :param BILOUs: List of BILOU tags as strings
     :return: List of IOB tags, as long as input list
     """
-    iobs: List[str] = []
+    IOBs: List[str] = []
 
-    for tag in bilous:
+    tag: str
+    for tag in BILOUs:
         if tag.startswith("L"):
             tag = "I" + tag.removeprefix("L")
         elif tag.startswith("U"):
             tag = "B" + tag.removeprefix("U")
-        iobs.append(tag)
-
-    return iobs
+        IOBs.append(tag)
+        # end for
+    return IOBs
+    # end def
 
 
 # %% tokenise
-dataset_dict = {'Text': raw_text_df['text'].values.tolist()}
-token_counter = Counter()
-tokenised = []
+dataset_dict: dict[str, Union[Encoding, str, list[str]]] = {'Text': raw_text_df['text'].values.tolist()}
+token_counter: Counter[str] = Counter()
+tokenised: list[Encoding] = []
+text: str
 for text in tqdm(dataset_dict['Text'], desc="Tokenise all texts"):
-    tokenised_text = tokeniser(text)[0]
-    tokens = tokenised_text.tokens
+    tokenised_text: Encoding = tokeniser(text)[0]
+    tokens: list[str] = tokenised_text.tokens
 
     tokenised.append(tokenised_text)
     token_counter.update(tokens)
+    # end for
 dataset_dict['tokenised'] = tokenised
 
 # %% store token_counter statistics, plot them somewhere else to appreciate its Zipf-iness
-token_counter_df = pd.DataFrame.from_dict([token_counter]).transpose()
+token_counter_df: DataFrame = pd.DataFrame.from_dict([token_counter]).transpose()
 token_counter_df.to_csv(
     os.path.join('data', 'token_counter.csv'),
     index_label="Token", header=["Count"]
 )
 
 # %% BILOU and IOB annotation columns per label
-label_to_int = {'O': 0}
+label_to_int: dict[str, int] = {'O': 0}
+label: str
 for label in present_labels:
+    prefix: str
     for prefix in ['B', 'I', 'L', 'U']:
         label_to_int[f"{prefix}-{label}"] = len(label_to_int)
+        # end for
 
-    label_subset_df: pd.DataFrame = get_subset_data(annotations_df, label)
-    subset_BILOUs = []
-    subset_IOBs = []
+    label_subset_df: DataFrame = get_subset_data(annotations_df, label)
+    subset_BILOUs: list[list[str]] = [] # todo
+    subset_IOBs: list[list[str]] = [] # todo
 
+    dict_access_index: int
     for dict_access_index in tqdm(
             range(len(dataset_dict['Text'])),
             desc=f"Converting {label} annotations to BILOUs and IOBs"
@@ -182,32 +203,37 @@ for label in present_labels:
         line_id: int = dict_access_index + 1
         text: str = dataset_dict['Text'][dict_access_index]
         tokenised_text = dataset_dict['tokenised'][dict_access_index]
-        annotations = label_subset_df.query(f"line_id == {line_id}")
-        annotations = annotations['annotations'].values.tolist()
+        annotations: DataFrame = label_subset_df.query(f"line_id == {line_id}")
+        annotations: list[list[int, str]] = annotations['annotations'].values.tolist()
 
-        bilous = annotations_to_token_BILOUs(tokenised_text, annotations)
-        subset_BILOUs.append(bilous)
+        BILOUs: list[str] = annotations_to_token_BILOUs(tokenised_text, annotations)
+        subset_BILOUs.append(BILOUs)
 
-        iobs = convert_BILOUs_to_IOBs(bilous)
-        subset_IOBs.append(iobs)
-    del bilous, iobs
+        IOBs: list[str] = convert_BILOUs_to_IOBs(BILOUs)
+        subset_IOBs.append(IOBs)
+        # end for
+    del BILOUs, IOBs
 
     dataset_dict[f'{label}-BILOUs'] = subset_BILOUs
     dataset_dict[f'{label}-IOBs'] = subset_IOBs
+    # end for
 del subset_BILOUs, subset_IOBs
 
 # %% export the dataset
 if "tokenised" in dataset_dict:
     del dataset_dict['tokenised']
-dataset_df = pd.DataFrame.from_dict(dataset_dict)
+dataset_df: DataFrame = pd.DataFrame.from_dict(dataset_dict)
 dataset_df.to_csv(
     os.path.join('data', 'BILOUs.csv'),
     index=False
 )
 
 # %% convert to a HuggingFace dataset
-ner_class_label = ClassLabel(len(label_to_int), names=list(label_to_int.keys()))
-features = Features({
+ner_class_label: ClassLabel = ClassLabel(
+    num_classes=len(label_to_int),
+    names=list(label_to_int.keys())
+)
+features: Features = Features({
     'Text': datasets.Value(dtype='string'),
     'EVENT-BILOUs': datasets.Sequence(feature=ner_class_label, length=-1),
     'EVENT-IOBs': datasets.Sequence(feature=ner_class_label, length=-1),
@@ -223,7 +249,7 @@ features = Features({
     'TIME-IOBs': datasets.Sequence(feature=ner_class_label, length=-1)
 })
 
-BILOUs_hug = Dataset.from_pandas(df=dataset_df, features=features)
+BILOUs_hug: Dataset = Dataset.from_pandas(df=dataset_df, features=features)
 print(BILOUs_hug)
 print(BILOUs_hug.features)
 
