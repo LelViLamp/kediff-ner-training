@@ -5,7 +5,7 @@ output: html_notebook
 
 ```{r packages, include=FALSE, echo=FALSE}
 if (!require(pacman)) install.packages("pacman")
-pacman::p_load(here, tidyverse)
+pacman::p_load(gridExtra, here, tidyverse)
 ```
 
 ```{r define_doccano_colours}
@@ -53,11 +53,13 @@ for (label in labels) {
 }
 
 for (label in labels) {
-  data <- data_file %>% readxl::read_excel(sheet = label, col_types = "numeric")
+  data <- 
+    data_file %>%
+    readxl::read_excel(sheet = label, col_types = "numeric") %>%
+    select(Epoch, `Training Loss`, `Validation Loss`)
   
-  plot <-
+  line_plot <-
     data %>%
-    select(Epoch, `Training Loss`, `Validation Loss`) %>%
     
     ggplot(aes(x = Epoch)) +
     geom_line(aes(y = `Training Loss`, color = "Training Loss"), size = 1) +
@@ -69,6 +71,19 @@ for (label in labels) {
          color = "Legend") +
     ylim(0, y_max) +
     theme_bw()
+  
+  table_plot <- 
+    data %>%
+    mutate_at(
+      vars(`Training Loss`, `Validation Loss`), 
+      ~format(round(., 7), nsmall = 7)
+    ) %>%
+    tableGrob(rows = NULL)
+  
+  plot <- grid.arrange(
+    line_plot, table_plot,
+    ncol = 1, heights = c(2, 1)
+  )
   
   print(plot)
   
