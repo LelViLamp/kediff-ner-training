@@ -1,0 +1,83 @@
+---
+title: "Training/validation loss"
+output: html_notebook
+---
+
+```{r packages, include=FALSE, echo=FALSE}
+if (!require(pacman)) install.packages("pacman")
+pacman::p_load(here, tidyverse)
+```
+
+```{r define_doccano_colours}
+doccano_colour_scheme_technical <- c(
+  'ATTENTION'         = '#f44e3b',
+  'EVENT'             = '#0062b1',
+  'LOC'               = '#7b64ff',
+  'MISC'              = '#a79c4f',
+  'ORG'               = '#16a5a5',
+  'PER'               = '#fcdc00',
+  'Personal Bookmark' = '#fda1ff',
+  'POSTCORR'          = '#9f0500',
+  'TIME'              = '#73d8ff',
+  '?'                 = '#cccccc'
+)
+
+doccano_colour_scheme_named <- c(
+  'Event'             = '#0062b1',
+  'Location'          = '#7b64ff',
+  'Miscellaneous'     = '#a79c4f',
+  'Organisation'      = '#16a5a5',
+  'Person'            = '#fcdc00',
+  'Time'              = '#73d8ff'
+)
+```
+
+```{r, warning=FALSE}
+data_file <- here::here("training-losses.xlsx")
+labels <- data_file %>% readxl::excel_sheets()
+
+# find y max
+for (label in labels) {
+  label_max <-
+    data_file %>%
+    readxl::read_excel(sheet = label, col_types = "numeric") %>%
+    select(Epoch, `Training Loss`, `Validation Loss`) %>%
+    select(-Epoch) %>%
+    max()
+  
+  if (!exists("y_max")) {
+    y_max <- label_max
+  } else {
+    y_max <- max(y_max, label_max)
+  }
+}
+
+for (label in labels) {
+  data <- data_file %>% readxl::read_excel(sheet = label, col_types = "numeric")
+  
+  plot <-
+    data %>%
+    select(Epoch, `Training Loss`, `Validation Loss`) %>%
+    
+    ggplot(aes(x = Epoch)) +
+    geom_line(aes(y = `Training Loss`, color = "Training Loss"), size = 1) +
+    geom_line(aes(y = `Validation Loss`, color = "Validation Loss"), size = 1) +
+    scale_color_manual(values = c("Training Loss" = "dodgerblue", "Validation Loss" = "tomato")) +
+    labs(title = paste("Training and validation loss for", label, "over epochs"),
+         x = "Epoch",
+         y = "Loss",
+         color = "Legend") +
+    ylim(0, y_max) +
+    theme_bw()
+  
+  print(plot)
+  
+  ggsave(
+    filename = here::here("plots", paste0("loss_", label, ".png")),
+    plot = plot,
+    create.dir = TRUE
+  )
+}
+
+```
+
