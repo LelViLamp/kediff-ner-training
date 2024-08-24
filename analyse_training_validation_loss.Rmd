@@ -76,7 +76,7 @@ for (label in labels) {
     data %>%
     mutate_at(
       vars(`Training Loss`, `Validation Loss`), 
-      ~format(round(., 7), nsmall = 7)
+      ~format(round(., 5), nsmall = 5)
     ) %>%
     tableGrob(rows = NULL)
   
